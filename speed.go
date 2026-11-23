@@ -83,7 +83,7 @@ func measureSpeed(ip string, port int, secret string, dur time.Duration, streams
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != 200 {
-				errs <- fmt.Errorf("host yanıtı: %s", resp.Status)
+				errs <- fmt.Errorf(L("host yanıtı: %s", "host replied: %s"), resp.Status)
 				return
 			}
 			buf := make([]byte, 64<<10)
@@ -114,7 +114,7 @@ func measureSpeed(ip string, port int, secret string, dur time.Duration, streams
 		if err := <-errs; err != nil {
 			return 0, err
 		}
-		return 0, errors.New("veri gelmedi")
+		return 0, errors.New(L("veri gelmedi", "no data arrived"))
 	}
 	_ = start
 	return float64(b1-b0) * 8 / elapsed / 1e6, nil
@@ -288,9 +288,9 @@ func makePlan(s StreamSettings, sp *SpeedResult, dispW, dispH, dispHz int) Plan 
 			p.FPS = 30
 		}
 		if autoRes && autoFPS {
-			p.Note = "Hat çok zayıf; görüntü düşük kalitede olacak."
+			p.Note = L("Hat çok zayıf; görüntü düşük kalitede olacak.", "The line is very weak; the picture will be low quality.")
 		} else {
-			p.Note = "Seçtiğin çözünürlük/fps bu hat için fazla; Otomatik daha akıcı olur."
+			p.Note = L("Seçtiğin çözünürlük/fps bu hat için fazla; Otomatik daha akıcı olur.", "The resolution/fps you picked is too much for this line; Auto will be smoother.")
 		}
 	}
 
@@ -306,7 +306,7 @@ func makePlan(s StreamSettings, sp *SpeedResult, dispW, dispH, dispHz int) Plan 
 			p.BitrateKbps = 500000
 		}
 		if hasBudget && float64(p.BitrateKbps) > budget*1.05 {
-			p.Note = fmt.Sprintf("Seçtiğin bitrate ölçülen hattın (%.1f Mbps) kaldıracağından yüksek; takılma olabilir.", sp.Mbps)
+			p.Note = fmt.Sprintf(L("Seçtiğin bitrate ölçülen hattın (%.1f Mbps) kaldıracağından yüksek; takılma olabilir.", "The bitrate you picked is more than the tested line (%.1f Mbps) can carry; it may stutter."), sp.Mbps)
 		}
 	}
 	p.Label = fmt.Sprintf("%s · %d fps", resLabel(p.Width, p.Height), p.FPS)

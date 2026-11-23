@@ -96,11 +96,13 @@ func relayLoop() {
 	runtime.LockOSThread()
 	if err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED); err != nil {
 		// S_FALSE (already initialised) is reported as an error by go-ole; ignore it.
-		logf("Ses aktarımı: COM uyarısı: %v", err)
+		logf(L("Ses aktarımı: COM uyarısı: %v", "Audio relay: COM warning: %v"), err)
 	}
 	var de *wca.IMMDeviceEnumerator
 	if err := wca.CoCreateInstance(wca.CLSID_MMDeviceEnumerator, 0, wca.CLSCTX_ALL, wca.IID_IMMDeviceEnumerator, &de); err != nil {
-		setRelay(func(s *RelayState) { s.Error = fmt.Sprintf("ses aygıtlarına ulaşılamadı: %v", err) })
+		setRelay(func(s *RelayState) {
+			s.Error = fmt.Sprintf(L("ses aygıtlarına ulaşılamadı: %v", "could not reach the audio devices: %v"), err)
+		})
 		return
 	}
 	defer de.Release()
@@ -137,9 +139,9 @@ func relayLoop() {
 			reason := ""
 			switch {
 			case c.Mode == "host" && !c.Host.RelayOff && src < 0:
-				reason = "sanal hoparlör bulunamadı"
+				reason = L("sanal hoparlör bulunamadı", "no virtual speaker found")
 			case c.Mode == "host" && !c.Host.RelayOff && dst < 0:
-				reason = "kulaklık/hoparlör bulunamadı"
+				reason = L("kulaklık/hoparlör bulunamadı", "no headphones or speakers found")
 			}
 			setRelay(func(s *RelayState) { s.Running, s.Source, s.Target, s.Error = false, "", "", reason })
 			releaseAll(devs)
@@ -150,7 +152,7 @@ func relayLoop() {
 		setRelay(func(s *RelayState) {
 			s.Running, s.Source, s.Target, s.Error = true, devs[src].info.Name, devs[dst].info.Name, ""
 		})
-		logf("Ses aktarımı: %s → %s", devs[src].info.Name, devs[dst].info.Name)
+		logf(L("Ses aktarımı: %s → %s", "Audio relay: %s → %s"), devs[src].info.Name, devs[dst].info.Name)
 		err = runRelay(devs[src].dev, devs[dst].dev, func() bool {
 			nc := getConfig()
 			return nc.Mode != "host" || nc.Host.RelayOff || nc.Host.RelayTarget != c.Host.RelayTarget
@@ -160,7 +162,7 @@ func relayLoop() {
 			msg := err.Error()
 			setRelay(func(s *RelayState) { s.Running = false; s.Error = msg })
 			if msg != lastErr {
-				logf("Ses aktarımı durdu: %s", msg)
+				logf(L("Ses aktarımı durdu: %s", "Audio relay stopped: %s"), msg)
 				lastErr = msg
 			}
 			time.Sleep(3 * time.Second)
@@ -173,16 +175,16 @@ func relayLoop() {
 func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 	capc, err := activateAudioClient(src)
 	if err != nil {
-		return fmt.Errorf("sanal hoparlör açılamadı: %v", err)
+		return fmt.Errorf(L("sanal hoparlör açılamadı: %v", "could not open the virtual speaker: %v"), err)
 	}
 	defer capc.Release()
 	var wfx *wca.WAVEFORMATEX
 	if err := capc.GetMixFormat(&wfx); err != nil {
-		return fmt.Errorf("ses biçimi okunamadı: %v", err)
+		return fmt.Errorf(L("ses biçimi okunamadı: %v", "could not read the audio format: %v"), err)
 	}
 	defer ole.CoTaskMemFree(uintptr(unsafe.Pointer(wfx)))
 	if err := capc.Initialize(wca.AUDCLNT_SHAREMODE_SHARED, wca.AUDCLNT_STREAMFLAGS_LOOPBACK, 2_000_000, 0, wfx, nil); err != nil {
-		return fmt.Errorf("yakalama başlatılamadı: %v", err)
+		return fmt.Errorf(L("yakalama başlatılamadı: %v", "could not start capturing: %v"), err)
 	}
 	var cc *wca.IAudioCaptureClient
 	if err := capc.GetService(wca.IID_IAudioCaptureClient, &cc); err != nil {
@@ -192,13 +194,13 @@ func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 
 	ren, err := activateAudioClient(dst)
 	if err != nil {
-		return fmt.Errorf("kulaklık açılamadı: %v", err)
+		return fmt.Errorf(L("kulaklık açılamadı: %v", "could not open the headphones: %v"), err)
 	}
 	defer ren.Release()
 	// AUTOCONVERTPCM lets Windows resample if the headphones use another format.
 	flags := uint32(wca.AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | wca.AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY)
 	if err := ren.Initialize(wca.AUDCLNT_SHAREMODE_SHARED, flags, 1_000_000, 0, wfx, nil); err != nil {
-		return fmt.Errorf("kulaklığa çalma başlatılamadı: %v", err)
+		return fmt.Errorf(L("kulaklığa çalma başlatılamadı: %v", "could not start playing to the headphones: %v"), err)
 	}
 	var rc *wca.IAudioRenderClient
 	if err := ren.GetService(wca.IID_IAudioRenderClient, &rc); err != nil {
@@ -213,7 +215,7 @@ func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 	block := int(wfx.NBlockAlign)
 	rate := int(wfx.NSamplesPerSec)
 	if block <= 0 || rate <= 0 {
-		return errors.New("geçersiz ses biçimi")
+		return errors.New(L("geçersiz ses biçimi", "invalid audio format"))
 	}
 	maxQueued := rate * 120 / 1000 * block // drop old audio beyond 120 ms
 	keepQueued := rate * 40 / 1000 * block
@@ -240,7 +242,7 @@ func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 		for {
 			var next uint32
 			if err := cc.GetNextPacketSize(&next); err != nil {
-				return fmt.Errorf("yakalama hatası: %v", err)
+				return fmt.Errorf(L("yakalama hatası: %v", "capture error: %v"), err)
 			}
 			if next == 0 {
 				break
@@ -249,7 +251,7 @@ func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 			var frames, bflags uint32
 			var pos, qpc uint64
 			if err := cc.GetBuffer(&data, &frames, &bflags, &pos, &qpc); err != nil {
-				return fmt.Errorf("yakalama hatası: %v", err)
+				return fmt.Errorf(L("yakalama hatası: %v", "capture error: %v"), err)
 			}
 			n := int(frames) * block
 			if bflags&wca.AUDCLNT_BUFFERFLAGS_SILENT != 0 || data == nil {
@@ -267,7 +269,7 @@ func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 		// Feed the headphones.
 		var padding uint32
 		if err := ren.GetCurrentPadding(&padding); err != nil {
-			return fmt.Errorf("çalma hatası: %v", err)
+			return fmt.Errorf(L("çalma hatası: %v", "playback error: %v"), err)
 		}
 		free := int(renSize - padding)
 		frames := len(queue) / block
@@ -277,7 +279,7 @@ func runRelay(src, dst *wca.IMMDevice, stop func() bool) error {
 		if frames > 0 {
 			var buf *byte
 			if err := rc.GetBuffer(uint32(frames), &buf); err != nil {
-				return fmt.Errorf("çalma hatası: %v", err)
+				return fmt.Errorf(L("çalma hatası: %v", "playback error: %v"), err)
 			}
 			copy(unsafe.Slice(buf, frames*block), queue[:frames*block])
 			if err := rc.ReleaseBuffer(uint32(frames), 0); err != nil {

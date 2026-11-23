@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,13 +11,16 @@ import (
 	"time"
 )
 
-var errNotPaired = errors.New("bu bilgisayar host ile eşleşmemiş")
+var (
+	errNotPaired   = newErr("bu bilgisayar host ile eşleşmemiş", "this PC is not paired with the host")
+	errNoMoonlight = newErr("Moonlight kurulu değil", "Moonlight is not installed")
+)
 
 // mlStartPair opens Moonlight's pairing window with a fixed PIN. It does not wait.
 func mlStartPair(hostIP, pin string) (*exec.Cmd, error) {
 	exe := moonlightExe()
 	if exe == "" {
-		return nil, errors.New("Moonlight kurulu değil")
+		return nil, errNoMoonlight
 	}
 	c := exec.Command(exe, "pair", hostIP, "--pin", pin)
 	if err := c.Start(); err != nil {
@@ -60,7 +62,7 @@ func mlListApps(hostIP string) ([]string, error) { return mlListAppsWithin(hostI
 func mlListAppsWithin(hostIP string, limit time.Duration) ([]string, error) {
 	exe := moonlightExe()
 	if exe == "" {
-		return nil, errors.New("Moonlight kurulu değil")
+		return nil, errNoMoonlight
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
@@ -99,14 +101,14 @@ func mlListAppsWithin(hostIP string, limit time.Duration) ([]string, error) {
 		return nil, errNotPaired
 	}
 	if ctx.Err() != nil {
-		msg = "Moonlight host'a ulaşamadı"
+		msg = L("Moonlight host'a ulaşamadı", "Moonlight could not reach the host")
 	} else if msg == "" && err != nil {
 		msg = err.Error()
 	}
 	if len(msg) > 200 {
 		msg = msg[len(msg)-200:]
 	}
-	return nil, fmt.Errorf("uygulama listesi alınamadı: %s", msg)
+	return nil, fmt.Errorf(L("uygulama listesi alınamadı: %s", "could not get the app list: %s"), msg)
 }
 
 func listNotPaired(out string) bool { return strings.Contains(strings.ToLower(out), "not been paired") }
@@ -147,12 +149,12 @@ func parseAppCSV(out string) []string {
 func mlStream(hostIP, app string, extra []string) error {
 	exe := moonlightExe()
 	if exe == "" {
-		return errors.New("Moonlight kurulu değil")
+		return errNoMoonlight
 	}
 	args := []string{"stream", hostIP, app}
 	args = append(args, extra...)
 	c := exec.Command(exe, args...)
-	// Controllers mapped with the "Kolu tanıt" wizard; Moonlight also saves them.
+	// Controllers mapped with the controller wizard; Moonlight also saves them.
 	if m := moonlightMappingEnv(); m != "" {
 		c.Env = append(os.Environ(), "SDL_GAMECONTROLLERCONFIG="+m)
 	}

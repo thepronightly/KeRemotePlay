@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -55,7 +54,7 @@ var (
 	jobSeq int
 )
 
-var errBusy = errors.New("başka bir işlem sürüyor, bitmesini bekle")
+var errBusy = newErr("başka bir işlem sürüyor, bitmesini bekle", "something else is running, wait for it to finish")
 
 func runJob(name string, fn func(j *Job) error) error {
 	jobMu.Lock()
@@ -67,12 +66,12 @@ func runJob(name string, fn func(j *Job) error) error {
 	j := &Job{ID: jobSeq, Name: name, Running: true, Started: time.Now().Unix()}
 	curJob = j
 	jobMu.Unlock()
-	logf("İşlem başladı: %s", name)
+	logf(L("İşlem başladı: %s", "Started: %s"), name)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				j.mu.Lock()
-				j.Running, j.OK, j.Err = false, false, fmt.Sprintf("beklenmeyen hata: %v", r)
+				j.Running, j.OK, j.Err = false, false, fmt.Sprintf(L("beklenmeyen hata: %v", "unexpected error: %v"), r)
 				j.mu.Unlock()
 				logf("PANIC in %s: %v", name, r)
 			}
@@ -88,9 +87,9 @@ func runJob(name string, fn func(j *Job) error) error {
 		}
 		j.mu.Unlock()
 		if err != nil {
-			logf("İşlem başarısız: %s: %v", name, err)
+			logf(L("İşlem başarısız: %s: %v", "Failed: %s: %v"), name, err)
 		} else {
-			logf("İşlem tamam: %s", name)
+			logf(L("İşlem tamam: %s", "Done: %s"), name)
 		}
 	}()
 	return nil

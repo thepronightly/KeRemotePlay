@@ -12,6 +12,7 @@ package main
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -38,33 +39,43 @@ type snapshot struct {
 
 type wizStep struct {
 	Key    string `json:"key"`
-	Prompt string `json:"prompt"`
+	Prompt string `json:"prompt"` // Turkish
+	En     string `json:"-"`
 	Kind   string `json:"kind"` // button | trigger | stickx | sticky
 }
 
 var wizSteps = []wizStep{
-	{"a", "Alttaki tuş (Xbox A · PS Çarpı)", "button"},
-	{"b", "Sağdaki tuş (Xbox B · PS Daire)", "button"},
-	{"x", "Soldaki tuş (Xbox X · PS Kare)", "button"},
-	{"y", "Üstteki tuş (Xbox Y · PS Üçgen)", "button"},
-	{"leftshoulder", "Sol üst tuş (LB · L1)", "button"},
-	{"rightshoulder", "Sağ üst tuş (RB · R1)", "button"},
-	{"lefttrigger", "Sol tetik (LT · L2)", "trigger"},
-	{"righttrigger", "Sağ tetik (RT · R2)", "trigger"},
-	{"back", "Back / Select / Share", "button"},
-	{"start", "Start / Options", "button"},
-	{"guide", "Ortadaki ana tuş (Xbox / PS / Home) — yoksa Atla", "button"},
-	{"leftstick", "Sol analoğa bastır (L3)", "button"},
-	{"rightstick", "Sağ analoğa bastır (R3)", "button"},
-	{"dpup", "Yön tuşu: YUKARI", "button"},
-	{"dpdown", "Yön tuşu: AŞAĞI", "button"},
-	{"dpleft", "Yön tuşu: SOL", "button"},
-	{"dpright", "Yön tuşu: SAĞ", "button"},
-	{"leftx", "Sol analoğu SAĞA it", "stickx"},
-	{"lefty", "Sol analoğu AŞAĞI it", "sticky"},
-	{"rightx", "Sağ analoğu SAĞA it", "stickx"},
-	{"righty", "Sağ analoğu AŞAĞI it", "sticky"},
+	{"a", "Alttaki tuş (Xbox A · PS Çarpı)", "Bottom button (Xbox A · PS Cross)", "button"},
+	{"b", "Sağdaki tuş (Xbox B · PS Daire)", "Right button (Xbox B · PS Circle)", "button"},
+	{"x", "Soldaki tuş (Xbox X · PS Kare)", "Left button (Xbox X · PS Square)", "button"},
+	{"y", "Üstteki tuş (Xbox Y · PS Üçgen)", "Top button (Xbox Y · PS Triangle)", "button"},
+	{"leftshoulder", "Sol üst tuş (LB · L1)", "Left bumper (LB · L1)", "button"},
+	{"rightshoulder", "Sağ üst tuş (RB · R1)", "Right bumper (RB · R1)", "button"},
+	{"lefttrigger", "Sol tetik (LT · L2)", "Left trigger (LT · L2)", "trigger"},
+	{"righttrigger", "Sağ tetik (RT · R2)", "Right trigger (RT · R2)", "trigger"},
+	{"back", "Back / Select / Share", "Back / Select / Share", "button"},
+	{"start", "Start / Options", "Start / Options", "button"},
+	{"guide", "Ortadaki ana tuş (Xbox / PS / Home) — yoksa Atla", "Middle home button (Xbox / PS / Home) — Skip if there is none", "button"},
+	{"leftstick", "Sol analoğa bastır (L3)", "Press the left stick in (L3)", "button"},
+	{"rightstick", "Sağ analoğa bastır (R3)", "Press the right stick in (R3)", "button"},
+	{"dpup", "Yön tuşu: YUKARI", "D-pad: UP", "button"},
+	{"dpdown", "Yön tuşu: AŞAĞI", "D-pad: DOWN", "button"},
+	{"dpleft", "Yön tuşu: SOL", "D-pad: LEFT", "button"},
+	{"dpright", "Yön tuşu: SAĞ", "D-pad: RIGHT", "button"},
+	{"leftx", "Sol analoğu SAĞA it", "Push the left stick RIGHT", "stickx"},
+	{"lefty", "Sol analoğu AŞAĞI it", "Push the left stick DOWN", "sticky"},
+	{"rightx", "Sağ analoğu SAĞA it", "Push the right stick RIGHT", "stickx"},
+	{"righty", "Sağ analoğu AŞAĞI it", "Push the right stick DOWN", "sticky"},
 }
+
+func stickName(left bool) string {
+	if left {
+		return L("Sol analog", "Left stick")
+	}
+	return L("Sağ analog", "Right stick")
+}
+
+var errNoWizard = newErr("tanıtma açık değil", "the controller setup is not open")
 
 const axisThreshold = 16000
 
@@ -155,7 +166,7 @@ func atRest(base, cur snapshot) bool {
 func sanitizeMapName(n string) string {
 	n = strings.NewReplacer(",", " ", "\n", " ", "\r", " ").Replace(strings.TrimSpace(n))
 	if n == "" {
-		n = "Kol"
+		n = "Controller"
 	}
 	return n
 }
@@ -282,7 +293,7 @@ func (w *wizard) skip() bool {
 func (w *wizard) view() *WizardView {
 	v := &WizardView{Active: true, GUID: w.guid, Name: w.name, Step: w.step, Total: len(wizSteps), Waiting: w.waitRest, Binds: w.binds}
 	if w.step < len(wizSteps) {
-		v.Prompt = wizSteps[w.step].Prompt
+		v.Prompt = L(wizSteps[w.step].Prompt, wizSteps[w.step].En)
 	} else {
 		v.Done = true
 	}
@@ -295,7 +306,7 @@ func (w *wizard) mapping() string { return buildMapping(w.guid, w.name, w.binds)
 func (w *wizard) complete() error {
 	for _, k := range []string{"a", "b", "leftx", "lefty"} {
 		if w.binds[k] == "" {
-			return fmt.Errorf("en azından A, B ve sol analog tanıtılmalı")
+			return errors.New(L("en azından A, B ve sol analog tanıtılmalı", "at least A, B and the left stick must be set up"))
 		}
 	}
 	return nil

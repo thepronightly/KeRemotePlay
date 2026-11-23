@@ -36,7 +36,7 @@ func hotkeyLoop(want func() bool, fire func()) {
 			if w {
 				r, _, err := procRegisterHotKey.Call(0, hotkeyID, modControl|modNoRepeat, vkF4)
 				if r == 0 {
-					logf("Ctrl+F4 alınamadı: %v", err)
+					logf(L("Ctrl+F4 alınamadı: %v", "Could not reserve Ctrl+F4: %v"), err)
 					setHotkeyErr(fmt.Sprint(err))
 				} else {
 					on = true

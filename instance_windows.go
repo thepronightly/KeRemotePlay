@@ -31,11 +31,11 @@ func singleInstance() bool {
 			same = append(same, p.pid)
 			continue
 		}
-		logf("Başka bir KeRemotePlay kopyası kapatılıyor: %s (pid %d)", filepath.Base(p.path), p.pid)
+		logf(L("Başka bir KeRemotePlay kopyası kapatılıyor: %s (pid %d)", "Closing another KeRemotePlay copy: %s (pid %d)"), filepath.Base(p.path), p.pid)
 		endProcess(p.pid)
 	}
 	if running && len(same) > 0 {
-		logf("Zaten açık; açık pencere öne getiriliyor")
+		logf("%s", L("Zaten açık; açık pencere öne getiriliyor", "Already open; bringing the window to the front"))
 		for _, pid := range same {
 			focusWindowOf(pid)
 		}
@@ -88,7 +88,7 @@ func processPath(pid uint32) string {
 func endProcess(pid uint32) {
 	h, err := windows.OpenProcess(windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, pid)
 	if err != nil {
-		logf("Kapatılamadı (pid %d): %v", pid, err)
+		logf(L("Kapatılamadı (pid %d): %v", "Could not close (pid %d): %v"), pid, err)
 		return
 	}
 	defer windows.CloseHandle(h)

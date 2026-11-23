@@ -38,7 +38,7 @@ func runWindow(url string) {
 	})
 	if w == nil {
 		// WebView2 runtime missing: fall back to the default browser.
-		logf("WebView2 açılamadı, arayüz tarayıcıda açılıyor")
+		logf("%s", L("WebView2 açılamadı, arayüz tarayıcıda açılıyor", "WebView2 did not open, opening the interface in the browser"))
 		_ = openURL(url)
 		<-quitCh
 		return

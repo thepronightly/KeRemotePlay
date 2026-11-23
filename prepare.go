@@ -2,7 +2,7 @@ package main
 
 // One-button flows.
 //
-// Host: "Davet kodu oluştur" → installs what is missing and sets Sunshine up with a
+// Host: "Make an invite code" → installs what is missing and sets Sunshine up with a
 // single UAC prompt, logs into Tailscale in the browser (first time only), takes the
 // invite key straight from the clipboard (first time only) and puts the invite code
 // on the clipboard.
@@ -77,7 +77,9 @@ func startHost() {
 	startSessionWatch()
 }
 
-func startHostPrepare() error { return runJob("Hazırlanıyor", hostPrepare) }
+func startHostPrepare() error { return runJob(L("Hazırlanıyor", "Getting ready"), hostPrepare) }
+
+var errTSNoStart = newErr("Tailscale servisi başlamadı. Bilgisayarı yeniden başlatıp tekrar dene", "the Tailscale service did not start. Restart the PC and try again")
 
 // hostPrepare takes the host from nothing to a ready invite code.
 func hostPrepare(j *Job) (err error) {
@@ -96,9 +98,9 @@ func hostPrepare(j *Job) (err error) {
 		if len(req.Install) > 0 {
 			names := make([]string, len(req.Install))
 			for i, k := range req.Install {
-				names[i] = components[k].Label
+				names[i] = components[k].label()
 			}
-			j.Logf("Kurulacak: %s", strings.Join(names, ", "))
+			j.Logf(L("Kurulacak: %s", "To install: %s"), strings.Join(names, ", "))
 		}
 		if err := elevate(j, req); err != nil {
 			return err
@@ -109,39 +111,39 @@ func hostPrepare(j *Job) (err error) {
 		withConfig(func(c *Config) { c.Host.SunUser, c.Host.SunPass = req.User, req.Pass })
 	}
 	c := getConfig().Host
-	j.Logf("Sunshine bekleniyor...")
+	j.Logf("%s", L("Sunshine bekleniyor...", "Waiting for Sunshine..."))
 	last := ""
 	if !waitFor(func() bool {
 		st := sunCheckCreds(c.SunUser, c.SunPass)
 		if st != last {
-			logf("Sunshine durumu: %s (servis %+v)", st, sunServiceState())
+			logf(L("Sunshine durumu: %s (servis %+v)", "Sunshine state: %s (service %+v)"), st, sunServiceState())
 			last = st
 		}
 		return st == "ok"
 	}, 90*time.Second) {
 		if st := sunCheckCreds(c.SunUser, c.SunPass); st == "bad" || st == "unset" {
-			return errors.New("Sunshine şifresi değişmiş; tekrar dene, yenisi ayarlanır")
+			return errors.New(L("Sunshine şifresi değişmiş; tekrar dene, yenisi ayarlanır", "Sunshine's password changed; try again and a new one is set"))
 		}
-		return errors.New("Sunshine yanıt vermedi. Bilgisayarı yeniden başlatıp tekrar dene")
+		return errors.New(L("Sunshine yanıt vermedi. Bilgisayarı yeniden başlatıp tekrar dene", "Sunshine did not answer. Restart the PC and try again"))
 	}
 	// Nobody stays paired from an earlier session (see session.go).
 	if !sessionActive() {
 		if err := sunUnpairAll(c.SunUser, c.SunPass); err != nil {
-			logf("Eski eşleşmeler silinemedi: %v", err)
+			logf(L("Eski eşleşmeler silinemedi: %v", "Could not remove old pairings: %v"), err)
 		}
 		connReset()
 	}
 
 	setHostPhase("login")
 	if !waitFor(func() bool { s := tsStatusFresh(); return s.Installed && s.BackendState != "" }, 60*time.Second) {
-		return errors.New("Tailscale servisi başlamadı. Bilgisayarı yeniden başlatıp tekrar dene")
+		return errTSNoStart
 	}
 	tsEnsureStarted(j)
 	tsRemember()
 	hostEnsureTailnet(j)
 	tsUp()
 	if !tsStatusFresh().Running() {
-		j.Logf("Tarayıcıda Tailscale açılıyor: Google, Microsoft ya da GitHub hesabınla giriş yap (sadece ilk seferde).")
+		j.Logf("%s", L("Tarayıcıda Tailscale açılıyor: Google, Microsoft ya da GitHub hesabınla giriş yap (sadece ilk seferde).", "Opening Tailscale in the browser: log in with your Google, Microsoft or GitHub account (first time only)."))
 		if err := tsInteractiveLogin(j); err != nil {
 			return err
 		}
@@ -149,7 +151,7 @@ func hostPrepare(j *Job) (err error) {
 	st := tsStatusFresh()
 	if c := getConfig().Host; c.Tailnet != "" && st.Tailnet != "" && st.Tailnet != c.Tailnet {
 		// The key belongs to the other network; invites need one from this one.
-		logf("Tailscale ağı değişti (%s → %s); yeni anahtar gerekiyor", c.Tailnet, st.Tailnet)
+		logf(L("Tailscale ağı değişti (%s → %s); yeni anahtar gerekiyor", "Tailscale network changed (%s → %s); a new key is needed"), c.Tailnet, st.Tailnet)
 		withConfig(func(c *Config) { c.Host.AuthKey = "" })
 	}
 	if st.Tailnet != "" {
@@ -165,7 +167,7 @@ func hostPrepare(j *Job) (err error) {
 	setHostPhase("done")
 	if inv := hostView().Invite; inv != "" {
 		if clipWriteText(inv) == nil {
-			j.Logf("Davet kodu panoya kopyalandı. Arkadaşına yapıştırıp gönder.")
+			j.Logf("%s", L("Davet kodu panoya kopyalandı. Arkadaşına yapıştırıp gönder.", "Invite code copied to the clipboard. Paste it to your friend."))
 		}
 	}
 	return nil
@@ -182,7 +184,7 @@ func hostEnsureTailnet(j *Job) {
 		if p.Tailnet != want || p.Current {
 			continue
 		}
-		j.Logf("Tailscale KeRemotePlay ağına geçiriliyor...")
+		j.Logf("%s", L("Tailscale KeRemotePlay ağına geçiriliyor...", "Switching Tailscale to the KeRemotePlay network..."))
 		if err := tsSwitch(p.ID); err != nil {
 			logf("tailscale switch %s: %v", p.ID, err)
 			return
@@ -202,7 +204,7 @@ func hostStartSunshine() {
 	}
 	if !s.Running {
 		if err := sunServiceSet(true); err != nil {
-			logf("Sunshine başlatılamadı: %v", err)
+			logf(L("Sunshine başlatılamadı: %v", "Could not start Sunshine: %v"), err)
 			return
 		}
 	}
@@ -215,12 +217,12 @@ func hostStopSunshine(j *Job) {
 		return
 	}
 	if !s.CanControl {
-		logf("Sunshine kapatılamadı: izin yok")
+		logf("%s", L("Sunshine kapatılamadı: izin yok", "Could not stop Sunshine: no permission"))
 		return
 	}
-	j.Logf("Sunshine kapatılıyor...")
+	j.Logf("%s", L("Sunshine kapatılıyor...", "Stopping Sunshine..."))
 	if err := sunServiceSet(false); err != nil {
-		logf("Sunshine kapatılamadı: %v", err)
+		logf(L("Sunshine kapatılamadı: %v", "Could not stop Sunshine: %v"), err)
 		return
 	}
 	waitFor(func() bool { return !sunServiceState().Running }, 15*time.Second)
@@ -230,7 +232,7 @@ func hostStopSunshine(j *Job) {
 // clipboard as soon as it is copied (it can also be pasted into the app).
 func hostWaitKey(j *Job) error {
 	_ = openURL("https://login.tailscale.com/admin/settings/keys")
-	j.Logf("Tarayıcıda Tailscale anahtar sayfası açıldı. Anahtarı oluşturup Kopyala'ya basman yeterli.")
+	j.Logf("%s", L("Tarayıcıda Tailscale anahtar sayfası açıldı. Anahtarı oluşturup Kopyala'ya basman yeterli.", "The Tailscale keys page is open in the browser. Make the key and press Copy, that is all."))
 	deadline := time.Now().Add(20 * time.Minute)
 	for time.Now().Before(deadline) {
 		if getConfig().Host.AuthKey != "" {
@@ -238,13 +240,13 @@ func hostWaitKey(j *Job) error {
 		}
 		if k := findAuthKey(clipReadText()); k != "" {
 			if err := hostSetAuthKey(k); err == nil {
-				j.Logf("Anahtar panodan alındı.")
+				j.Logf("%s", L("Anahtar panodan alındı.", "Key taken from the clipboard."))
 				return nil
 			}
 		}
 		time.Sleep(700 * time.Millisecond)
 	}
-	return errors.New("anahtar 20 dakika içinde gelmedi; tekrar dene")
+	return errors.New(L("anahtar 20 dakika içinde gelmedi; tekrar dene", "no key arrived within 20 minutes; try again"))
 }
 
 // findAuthKey extracts a Tailscale auth key from arbitrary text.
@@ -294,9 +296,9 @@ func clientInstall(j *Job) error {
 		return err
 	}
 	tsInvalidate()
-	j.Logf("Tailscale servisi bekleniyor...")
+	j.Logf("%s", L("Tailscale servisi bekleniyor...", "Waiting for the Tailscale service..."))
 	if !waitFor(func() bool { s := tsStatusFresh(); return s.Installed && s.BackendState != "" }, 60*time.Second) {
-		return errors.New("Tailscale servisi başlamadı. Bilgisayarı yeniden başlatıp tekrar dene")
+		return errTSNoStart
 	}
 	return nil
 }

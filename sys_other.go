@@ -15,7 +15,7 @@ func hideCmd(c *exec.Cmd) {}
 func askToClose(c *exec.Cmd) { _ = c.Process.Signal(os.Interrupt) }
 
 func openURL(u string) error {
-	logf("Tarayıcıda aç: %s", u)
+	logf(L("Tarayıcıda aç: %s", "Open in browser: %s"), u)
 	if p, err := exec.LookPath("xdg-open"); err == nil {
 		return exec.Command(p, u).Start()
 	}

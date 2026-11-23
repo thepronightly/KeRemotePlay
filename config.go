@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const appVersion = "0.9.6"
+const appVersion = "0.9.7"
 
 // AgentPort is the TCP port the host-side pairing agent listens on (Tailscale only).
 const AgentPort = 47900
@@ -48,12 +48,13 @@ type ClientConfig struct {
 
 	Stream StreamSettings `json:"stream"`
 	Speed  *SpeedResult   `json:"speed,omitempty"`
-	// Mappings: SDL controller mappings made with the "Kolu tanıt" wizard, by GUID.
+	// Mappings: SDL controller mappings made with the controller wizard, by GUID.
 	Mappings map[string]string `json:"mappings,omitempty"`
 }
 
 type Config struct {
-	Mode   string       `json:"-"` // "host" | "client" | "", chosen at every start
+	Mode   string       `json:"-"`              // "host" | "client" | "", chosen at every start
+	Lang   string       `json:"lang,omitempty"` // "tr" | "en"; empty = Windows' language
 	Host   HostConfig   `json:"host"`
 	Client ClientConfig `json:"client"`
 }
@@ -89,6 +90,7 @@ func loadConfig() {
 	if !validRes(cfg.Client.Stream.Res) {
 		cfg.Client.Stream.Res = "auto"
 	}
+	initLang(cfg.Lang)
 }
 
 // withConfig runs fn under the config lock and persists the result.
@@ -98,7 +100,7 @@ func withConfig(fn func(c *Config)) {
 	snapshot := cfg
 	cfgMu.Unlock()
 	if err := saveConfig(snapshot); err != nil {
-		logf("Ayarlar kaydedilemedi: %v", err)
+		logf(L("Ayarlar kaydedilemedi: %v", "Could not save settings: %v"), err)
 	}
 }
 
@@ -169,7 +171,7 @@ func initLog() {
 	if err == nil {
 		logFile = f
 	}
-	logf("KeRemotePlay %s başladı", appVersion)
+	logf("KeRemotePlay %s", appVersion)
 }
 
 func logf(format string, a ...any) {

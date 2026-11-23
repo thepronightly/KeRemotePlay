@@ -77,10 +77,12 @@ func firstIPv4(ips []string) string {
 	return ""
 }
 
+var errNoTailscale = newErr("Tailscale kurulu değil", "Tailscale is not installed")
+
 func runTS(ctx context.Context, args ...string) ([]byte, error) {
 	exe := tailscaleExe()
 	if exe == "" {
-		return nil, errors.New("Tailscale kurulu değil")
+		return nil, errNoTailscale
 	}
 	c := exec.CommandContext(ctx, exe, args...)
 	hideCmd(c)
@@ -126,7 +128,7 @@ func tsStatus(maxAge time.Duration) TSStatus {
 	tsCache = tsStatusFresh()
 	tsCacheAt = time.Now()
 	if tsCache.BackendState != prev {
-		logf("Tailscale durumu: %s", stateText(tsCache))
+		logf(L("Tailscale durumu: %s", "Tailscale state: %s"), stateText(tsCache))
 	}
 	return tsCache
 }
@@ -195,7 +197,7 @@ func parsePing(out string) PingResult {
 	if !r.OK {
 		msg := strings.TrimSpace(out)
 		if msg == "" {
-			msg = "yanıt yok"
+			msg = noReply()
 		}
 		if len(msg) > 160 {
 			msg = msg[len(msg)-160:]
@@ -211,11 +213,13 @@ func tsPing(ip string) PingResult {
 	defer cancel()
 	out, err := runTS(ctx, "ping", "--c", "8", "--timeout", "2s", ip)
 	r := parsePing(string(out))
-	if !r.OK && err != nil && r.Error == "yanıt yok" {
+	if !r.OK && err != nil && r.Error == noReply() {
 		r.Error = err.Error()
 	}
 	return r
 }
+
+func noReply() string { return L("yanıt yok", "no reply") }
 
 // ---- login ---------------------------------------------------------------
 
@@ -227,16 +231,16 @@ var authURLRe = regexp.MustCompile(`https://login\.tailscale\.com/\S+`)
 func tsInteractiveLogin(j *Job) error {
 	exe := tailscaleExe()
 	if exe == "" {
-		return errors.New("Tailscale kurulu değil")
+		return errNoTailscale
 	}
 	st := tsEnsureStarted(j)
-	j.Logf("Tailscale durumu: %s", stateText(st))
+	j.Logf(L("Tailscale durumu: %s", "Tailscale state: %s"), stateText(st))
 	if st.Running() {
 		return nil
 	}
 	if st.BackendState == "NeedsMachineAuth" {
 		_ = openURL("https://login.tailscale.com/admin/machines")
-		j.Logf("Giriş yapılmış ama bu cihazın Tailscale panelinde onaylanması gerekiyor. Açılan sayfada bu bilgisayarı onayla.")
+		j.Logf("%s", L("Giriş yapılmış ama bu cihazın Tailscale panelinde onaylanması gerekiyor. Açılan sayfada bu bilgisayarı onayla.", "You are logged in, but this device must be approved in the Tailscale admin page. Approve this PC on the page that opened."))
 		return waitRunning(j, 5*time.Minute)
 	}
 
@@ -244,7 +248,7 @@ func tsInteractiveLogin(j *Job) error {
 	open := func(u string) {
 		if u != "" && u != opened {
 			opened = u
-			j.Logf("Tarayıcıda Tailscale giriş sayfası açılıyor. Giriş yapınca burası kendiliğinden devam eder.")
+			j.Logf("%s", L("Tarayıcıda Tailscale giriş sayfası açılıyor. Giriş yapınca burası kendiliğinden devam eder.", "Opening the Tailscale login page in the browser. This continues by itself once you log in."))
 			_ = openURL(u)
 		}
 	}
@@ -261,7 +265,7 @@ func tsInteractiveLogin(j *Job) error {
 	pr, pw := io.Pipe()
 	c.Stdout, c.Stderr = pw, pw
 	if err := c.Start(); err != nil {
-		return fmt.Errorf("tailscale başlatılamadı: %v", err)
+		return fmt.Errorf(L("tailscale başlatılamadı: %v", "could not start tailscale: %v"), err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- c.Wait(); pw.Close() }()
@@ -300,7 +304,7 @@ func tsInteractiveLogin(j *Job) error {
 			s2 := tsStatusFresh()
 			if s2.Running() {
 				tsInvalidate()
-				j.Logf("Tailscale bağlandı: %s", s2.SelfIP)
+				j.Logf(L("Tailscale bağlandı: %s", "Tailscale connected: %s"), s2.SelfIP)
 				return nil
 			}
 			open(s2.AuthURL)
@@ -311,15 +315,16 @@ func tsInteractiveLogin(j *Job) error {
 					msg = strings.TrimSpace(cmdErr.Error() + " " + msg)
 				}
 				if msg == "" {
-					msg = "tailscale komutu çıktı vermeden bitti"
+					msg = L("tailscale komutu çıktı vermeden bitti", "the tailscale command ended without output")
 				}
-				logf("Tailscale girişi başarısız: durum=%s çıktı=%s", stateText(s2), msg)
+				logf(L("Tailscale girişi başarısız: durum=%s çıktı=%s", "Tailscale login failed: state=%s output=%s"), stateText(s2), msg)
 				_ = openTailscaleApp()
-				return fmt.Errorf("Tailscale girişi başlatılamadı (%s; %s). Tailscale uygulaması açıldı; saatin yanındaki Tailscale simgesinden \"Log in\" ile giriş yap, bu ekran kendiliğinden güncellenir", stateText(s2), msg)
+				return fmt.Errorf(L("Tailscale girişi başlatılamadı (%s; %s). Tailscale uygulaması açıldı; saatin yanındaki Tailscale simgesinden \"Log in\" ile giriş yap, bu ekran kendiliğinden güncellenir",
+					"could not start the Tailscale login (%s; %s). The Tailscale app is open; log in with \"Log in\" from the Tailscale icon next to the clock, this screen updates by itself"), stateText(s2), msg)
 			}
 		}
 	}
-	return errors.New("Tailscale girişi 5 dakika içinde tamamlanmadı")
+	return errors.New(L("Tailscale girişi 5 dakika içinde tamamlanmadı", "the Tailscale login did not finish within 5 minutes"))
 }
 
 // tsStarting: the service is up but has not loaded its state yet. On Windows this
@@ -336,7 +341,7 @@ func tsEnsureStarted(j *Job) TSStatus {
 	if !tsStarting(st) {
 		return st
 	}
-	j.Logf("Tailscale başlatılıyor...")
+	j.Logf("%s", L("Tailscale başlatılıyor...", "Starting Tailscale..."))
 	_ = openTailscaleApp()
 	waitFor(func() bool { st = tsStatusFresh(); return !tsStarting(st) }, 40*time.Second)
 	tsInvalidate()
@@ -348,22 +353,22 @@ func waitRunning(j *Job, max time.Duration) error {
 	for time.Now().Before(deadline) {
 		if st := tsStatusFresh(); st.Running() {
 			tsInvalidate()
-			j.Logf("Tailscale bağlandı: %s", st.SelfIP)
+			j.Logf(L("Tailscale bağlandı: %s", "Tailscale connected: %s"), st.SelfIP)
 			return nil
 		}
 		time.Sleep(2 * time.Second)
 	}
-	return errors.New("Tailscale bağlanmadı")
+	return errors.New(L("Tailscale bağlanmadı", "Tailscale did not connect"))
 }
 
 func stateText(s TSStatus) string {
 	switch {
 	case !s.Installed:
-		return "kurulu değil"
+		return L("kurulu değil", "not installed")
 	case s.Error != "" && s.BackendState == "":
-		return "servise ulaşılamadı (" + s.Error + ")"
+		return L("servise ulaşılamadı (", "service not reachable (") + s.Error + ")"
 	case s.BackendState == "":
-		return "bilinmiyor"
+		return L("bilinmiyor", "unknown")
 	}
 	return s.BackendState
 }
@@ -484,13 +489,13 @@ func tsRestore(j *Job) {
 		return
 	}
 	if *saved != "" && *saved != tsCurrentProfile() {
-		j.Logf("Tailscale önceki ağına döndürülüyor...")
+		j.Logf("%s", L("Tailscale önceki ağına döndürülüyor...", "Switching Tailscale back to its previous network..."))
 		if err := tsSwitch(*saved); err != nil {
 			logf("tailscale switch %s: %v", *saved, err)
 		}
 		return
 	}
-	j.Logf("Tailscale kapatılıyor...")
+	j.Logf("%s", L("Tailscale kapatılıyor...", "Disconnecting Tailscale..."))
 	tsDown()
 }
 
@@ -523,7 +528,7 @@ func tsSwitchToPeer(j *Job, ip, prefer string) (TSStatus, bool) {
 	if len(order) == 0 {
 		return TSStatus{}, false
 	}
-	j.Logf("Tailscale host'un ağına bağlanıyor...")
+	j.Logf("%s", L("Tailscale host'un ağına bağlanıyor...", "Connecting Tailscale to the host's network..."))
 	for _, p := range order {
 		if !p.Current {
 			if err := tsSwitch(p.ID); err != nil {
@@ -533,7 +538,7 @@ func tsSwitchToPeer(j *Job, ip, prefer string) (TSStatus, bool) {
 		}
 		tsUp()
 		if st, ok := tsWaitPeer(ip, 12*time.Second); ok {
-			logf("Tailscale profili: %s", p.Tailnet)
+			logf(L("Tailscale profili: %s", "Tailscale profile: %s"), p.Tailnet)
 			return st, true
 		}
 	}
@@ -555,19 +560,19 @@ func tsReach(j *Job, ip, tailnet, key string) (TSStatus, error) {
 		return st2, nil
 	}
 	if key == "" {
-		return st, errors.New("host'un ağına bağlı değilsin; host'tan yeni davet kodu iste")
+		return st, errors.New(L("host'un ağına bağlı değilsin; host'tan yeni davet kodu iste", "you are not on the host's network; ask the host for a new invite code"))
 	}
 	if st = tsStatusFresh(); st.Running() {
-		j.Logf("Tailscale başka bir ağa bağlı; KeRemotePlay ağı ayrı bir profil olarak ekleniyor.")
+		j.Logf("%s", L("Tailscale başka bir ağa bağlı; KeRemotePlay ağı ayrı bir profil olarak ekleniyor.", "Tailscale is on another network; adding the KeRemotePlay network as a separate profile."))
 	}
-	j.Logf("Host'un ağına katılınıyor...")
+	j.Logf("%s", L("Host'un ağına katılınıyor...", "Joining the host's network..."))
 	if err := tsJoinWithKey(j, key); err != nil {
-		return st, fmt.Errorf("%v. Anahtarın süresi dolmuş olabilir; host'tan yeni davet kodu iste", err)
+		return st, fmt.Errorf(L("%v. Anahtarın süresi dolmuş olabilir; host'tan yeni davet kodu iste", "%v. The key may have expired; ask the host for a new invite code"), err)
 	}
 	if st, ok := tsWaitPeer(ip, 30*time.Second); ok {
 		return st, nil
 	}
-	return st, errors.New("ağa katılındı ama host görünmüyor. Davet kodu güncel mi? Host'ta Tailscale açık mı?")
+	return st, errors.New(L("ağa katılındı ama host görünmüyor. Davet kodu güncel mi? Host'ta Tailscale açık mı?", "joined the network but the host is not visible. Is the invite code current? Is Tailscale running on the host?"))
 }
 
 // tsJoinWithKey logs this device into the host's tailnet with a pre-auth key.
@@ -582,7 +587,7 @@ func tsJoinWithKey(j *Job, key string) error {
 	}
 	tsInvalidate()
 	if err != nil {
-		return fmt.Errorf("Tailscale ağına katılınamadı: %v", err)
+		return fmt.Errorf(L("Tailscale ağına katılınamadı: %v", "could not join the Tailscale network: %v"), err)
 	}
 	return nil
 }

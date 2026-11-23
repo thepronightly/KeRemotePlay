@@ -16,6 +16,31 @@ import (
 	"time"
 )
 
+// The tests check Turkish texts; the language must not follow the test machine.
+func TestMain(m *testing.M) {
+	os.Setenv("KRP_LANG", "tr")
+	setLang("tr")
+	os.Exit(m.Run())
+}
+
+func TestLanguage(t *testing.T) {
+	defer setLang("tr")
+	setLang("en")
+	if L("evet", "yes") != "yes" || errNotPaired.Error() != "this PC is not paired with the host" {
+		t.Fatal("English not picked")
+	}
+	if errIn(errNotPaired, "tr") != "bu bilgisayar host ile eşleşmemiş" || errIn(errors.New("x"), "tr") != "x" {
+		t.Fatal("errIn")
+	}
+	setLang("tr")
+	if L("evet", "yes") != "evet" || normLang("en-US") != "en" || normLang("") != "tr" {
+		t.Fatal("Turkish not picked")
+	}
+	if v := newWizard("g", "n", snapshot{}).view(); v.Prompt != wizSteps[0].Prompt {
+		t.Fatal("wizard prompt")
+	}
+}
+
 func TestInviteRoundTrip(t *testing.T) {
 	in := Invite{Key: "tskey-auth-kAbc123-XYZ", IP: "100.101.102.103", Name: "HOST-PC", Secret: "abcd", Port: AgentPort}
 	code := encodeInvite(in)

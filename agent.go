@@ -117,7 +117,7 @@ func agentHandler() http.Handler {
 		}
 		speedHandler(w, r)
 	})
-	// The host's window asks "X bağlanmak istiyor"; the answer ends this call.
+	// The host's window asks "X wants to connect"; the answer ends this call.
 	mux.HandleFunc("/krp/request", func(w http.ResponseWriter, r *http.Request) {
 		ip, ok := auth(w, r)
 		if !ok {
@@ -132,7 +132,7 @@ func agentHandler() http.Handler {
 		}
 		_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req)
 		if err := connAsk(r.Context(), ip.String(), cleanName(req.Name), connAskTime); err != nil {
-			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			writeJSON(w, map[string]any{"ok": false, "error": errIn(err, peerLang(r))})
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true})
@@ -150,37 +150,44 @@ func agentHandler() http.Handler {
 			PIN  string `json:"pin"`
 			Name string `json:"name"`
 		}
+		pl := peerLang(r)
 		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil || !pinRe.MatchString(req.PIN) {
-			writeJSON(w, map[string]any{"ok": false, "error": "geçersiz istek"})
+			writeJSON(w, map[string]any{"ok": false, "error": Lin(pl, "geçersiz istek", "invalid request")})
 			return
 		}
 		if !connApproved(ip.String()) {
-			writeJSON(w, map[string]any{"ok": false, "error": "host bu bağlantıya izin vermedi"})
+			writeJSON(w, map[string]any{"ok": false, "error": Lin(pl, "host bu bağlantıya izin vermedi", "the host did not allow this connection")})
 			return
 		}
 		name := cleanName(req.Name)
 		if !pairMu.TryLock() {
-			writeJSON(w, map[string]any{"ok": false, "error": "host şu an başka bir eşleştirmeyle meşgul, birazdan tekrar dene"})
+			writeJSON(w, map[string]any{"ok": false, "error": Lin(pl, "host şu an başka bir eşleştirmeyle meşgul, birazdan tekrar dene", "the host is busy with another pairing, try again in a moment")})
 			return
 		}
 		defer pairMu.Unlock()
 		c := getConfig()
-		logf("Eşleştirme isteği: %s (%s)", name, ip)
+		logf(L("Eşleştirme isteği: %s (%s)", "Pairing request: %s (%s)"), name, ip)
 		err := sunSubmitPin(c.Host.SunUser, c.Host.SunPass, ip.String(), req.PIN, name, 45*time.Second)
 		if err != nil {
-			logf("Eşleştirme başarısız: %v", err)
-			setAgent(func(s *AgentState) { s.LastEvent = fmt.Sprintf("%s eşleştirilemedi: %v", name, err) })
-			writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+			logf(L("Eşleştirme başarısız: %v", "Pairing failed: %v"), err)
+			setAgent(func(s *AgentState) {
+				s.LastEvent = fmt.Sprintf(L("%s eşleştirilemedi: %v", "%s could not be paired: %v"), name, err)
+			})
+			writeJSON(w, map[string]any{"ok": false, "error": errIn(err, pl)})
 			return
 		}
-		logf("Eşleştirildi: %s", name)
+		logf(L("Eşleştirildi: %s", "Paired: %s"), name)
 		setAgent(func(s *AgentState) {
-			s.LastEvent = fmt.Sprintf("%s eşleştirildi (%s)", name, time.Now().Format("15:04"))
+			s.LastEvent = fmt.Sprintf(L("%s eşleştirildi (%s)", "%s paired (%s)"), name, time.Now().Format("15:04"))
 		})
 		writeJSON(w, map[string]any{"ok": true})
 	})
 	return mux
 }
+
+// peerLang is the friend's language, sent along with each request; older
+// versions send none and get Turkish.
+func peerLang(r *http.Request) string { return normLang(r.Header.Get("X-KRP-Lang")) }
 
 // connAskTime: how long a friend waits for the host's answer.
 const connAskTime = 60 * time.Second
@@ -214,11 +221,11 @@ func startAgent() {
 			if err != nil {
 				setAgent(func(s *AgentState) {
 					s.Running = false
-					s.Error = fmt.Sprintf("port %d açılamadı: %v", AgentPort, err)
+					s.Error = fmt.Sprintf(L("port %d açılamadı: %v", "could not open port %d: %v"), AgentPort, err)
 				})
 			} else {
 				setAgent(func(s *AgentState) { s.Running = true; s.Error = "" })
-				logf("Eşleştirme servisi açık (port %d)", AgentPort)
+				logf(L("Eşleştirme servisi açık (port %d)", "Pairing service open (port %d)"), AgentPort)
 				err = srv.Serve(ln)
 				if !errors.Is(err, http.ErrServerClosed) {
 					setAgent(func(s *AgentState) { s.Running = false; s.Error = fmt.Sprint(err) })
@@ -243,7 +250,7 @@ func stopAgent() {
 	close(agentStop)
 	agentStop = nil
 	setAgent(func(s *AgentState) { s.Running, s.Error = false, "" })
-	logf("Eşleştirme servisi kapatıldı")
+	logf("%s", L("Eşleştirme servisi kapatıldı", "Pairing service closed"))
 }
 
 // ---- client side ---------------------------------------------------------
@@ -251,8 +258,8 @@ func stopAgent() {
 var agentHTTP = &http.Client{Transport: &http.Transport{Proxy: nil}}
 
 var (
-	errInviteGone = errors.New("bu kod artık geçerli değil; host'tan yeni kod iste")
-	errNotHosting = errors.New("karşı taraf şu an Host değil; KeRemotePlay'de Host'u seçsin")
+	errInviteGone = newErr("bu kod artık geçerli değil; host'tan yeni kod iste", "this code is no longer valid; ask the host for a new one")
+	errNotHosting = newErr("karşı taraf şu an Host değil; KeRemotePlay'de Host'u seçsin", "the other PC is not hosting right now; they should pick Host in KeRemotePlay")
 )
 
 func agentCall(ip string, port int, secret, method, path string, body any, timeout time.Duration, out any) error {
@@ -266,6 +273,7 @@ func agentCall(ip string, port int, secret, method, path string, body any, timeo
 		return err
 	}
 	req.Header.Set("X-KRP-Secret", secret)
+	req.Header.Set("X-KRP-Lang", lang())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -282,10 +290,10 @@ func agentCall(ip string, port int, secret, method, path string, body any, timeo
 	case 503:
 		return errNotHosting
 	case 404:
-		return errors.New("karşı taraftaki KeRemotePlay eski; ikiniz de aynı sürümü kullanın")
+		return errors.New(L("karşı taraftaki KeRemotePlay eski; ikiniz de aynı sürümü kullanın", "the other PC's KeRemotePlay is too old; both of you should use the same version"))
 	}
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("host yanıtı: %s", resp.Status)
+		return fmt.Errorf(L("host yanıtı: %s", "host replied: %s"), resp.Status)
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out)
 }

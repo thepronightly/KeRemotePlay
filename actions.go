@@ -142,10 +142,10 @@ func invalidateLegacy() { legacyMu.Lock(); legacyAt = time.Time{}; legacyMu.Unlo
 func hostSetAuthKey(key string) error {
 	key = strings.TrimSpace(key)
 	if !strings.HasPrefix(key, "tskey-") {
-		return errors.New("anahtar 'tskey-' ile başlamalı (Tailscale panelindeki Auth key)")
+		return errors.New(L("anahtar 'tskey-' ile başlamalı (Tailscale panelindeki Auth key)", "the key must start with 'tskey-' (the Auth key from the Tailscale admin page)"))
 	}
 	if strings.HasPrefix(key, "tskey-api-") || strings.HasPrefix(key, "tskey-client-") {
-		return errors.New("bu bir API anahtarı. 'Generate auth key' ile üretilen tskey-auth-... anahtarı lazım")
+		return errors.New(L("bu bir API anahtarı. 'Generate auth key' ile üretilen tskey-auth-... anahtarı lazım", "this is an API key. A tskey-auth-... key made with 'Generate auth key' is needed"))
 	}
 	withConfig(func(c *Config) { c.Host.AuthKey = key })
 	return nil
@@ -260,7 +260,7 @@ func healthLoop() {
 		agentErr := ""
 		if err := agentCall(c.Client.HostIP, c.Client.AgentPort, c.Client.Secret, "GET", "/krp/info", nil, 4*time.Second, &info); err != nil {
 			if errors.Is(err, errInviteGone) {
-				clientLeave(hostLabel(c.Client) + " oturumu kapattı. Tekrar bağlanmak için yeni kod iste.")
+				clientLeave(hostLabel(c.Client) + L(" oturumu kapattı. Tekrar bağlanmak için yeni kod iste.", " ended the session. Ask for a new code to connect again."))
 				continue
 			}
 			agentErr = err.Error()
@@ -293,19 +293,19 @@ func clientJoin(j *Job, code string) error {
 	if err != nil {
 		return err
 	}
-	j.Logf("Davet kodu okundu: %s", inv.Name)
+	j.Logf(L("Davet kodu okundu: %s", "Invite code read: %s"), inv.Name)
 	if err := clientInstall(j); err != nil {
 		return err
 	}
 
 	if st := tsStatusFresh(); st.Running() && st.SelfIP == inv.IP {
-		return errors.New("bu davet kodu bu bilgisayarın kendi kodu. Kodu arkadaşının bilgisayarında kullan")
+		return errors.New(L("bu davet kodu bu bilgisayarın kendi kodu. Kodu arkadaşının bilgisayarında kullan", "this invite code belongs to this PC. Use it on your friend's PC"))
 	}
 	st, err := tsReach(j, inv.IP, inv.Tailnet, inv.Key)
 	if err != nil {
 		return err
 	}
-	j.Logf("Host'un ağına bağlandın.")
+	j.Logf("%s", L("Host'un ağına bağlandın.", "You are on the host's network."))
 
 	withConfig(func(c *Config) {
 		c.Client.HostIP, c.Client.HostName, c.Client.Tailnet = inv.IP, inv.Name, st.Tailnet
@@ -340,7 +340,7 @@ func clientLeave(notice string) {
 func clientEnsureNet(j *Job) error {
 	c := getConfig().Client
 	if c.HostIP == "" {
-		return errors.New("önce davet koduyla bağlan")
+		return errNoInvite
 	}
 	st, err := tsReach(j, c.HostIP, c.Tailnet, c.AuthKey)
 	if err != nil {
@@ -352,11 +352,13 @@ func clientEnsureNet(j *Job) error {
 	// Right after a profile switch peers show up as offline for a moment.
 	online := func() bool { p, _ := tsStatusFresh().Peer(c.HostIP); return p.Online }
 	if p, _ := st.Peer(c.HostIP); !p.Online && !waitFor(online, 10*time.Second) && !tcpOpen(c.HostIP, c.AgentPort) {
-		return fmt.Errorf("%s şu an çevrim dışı. Arkadaşının bilgisayarı açık olmalı (KeRemotePlay de açık olsun)", hostLabel(c))
+		return fmt.Errorf(L("%s şu an çevrim dışı. Arkadaşının bilgisayarı açık olmalı (KeRemotePlay de açık olsun)", "%s is offline. Your friend's PC must be on, with KeRemotePlay open"), hostLabel(c))
 	}
 	kickHealth()
 	return nil
 }
+
+var errNoInvite = newErr("önce davet koduyla bağlan", "connect with an invite code first")
 
 func hostLabel(c ClientConfig) string {
 	if c.HostName != "" {
@@ -368,9 +370,9 @@ func hostLabel(c ClientConfig) string {
 func clientPair(j *Job) error {
 	c := getConfig().Client
 	if c.HostIP == "" {
-		return errors.New("önce davet koduyla bağlan")
+		return errNoInvite
 	}
-	j.Logf("Host'taki KeRemotePlay'e ulaşılıyor...")
+	j.Logf("%s", L("Host'taki KeRemotePlay'e ulaşılıyor...", "Reaching KeRemotePlay on the host..."))
 	var info HostInfo
 	var lastErr error
 	for i := 0; i < 8; i++ {
@@ -388,38 +390,38 @@ func clientPair(j *Job) error {
 		return lastErr
 	}
 	if lastErr != nil {
-		logf("Host'a ulaşılamadı: %v", lastErr)
-		return errors.New("host'taki KeRemotePlay'e ulaşılamadı. Karşı tarafta program açık olmalı ve Host seçilmiş olmalı")
+		logf(L("Host'a ulaşılamadı: %v", "Could not reach the host: %v"), lastErr)
+		return errors.New(L("host'taki KeRemotePlay'e ulaşılamadı. Karşı tarafta program açık olmalı ve Host seçilmiş olmalı", "could not reach KeRemotePlay on the host. It must be open there, with Host picked"))
 	}
 	if !info.Sunshine {
-		return errors.New("host'ta Sunshine çalışmıyor")
+		return errors.New(L("host'ta Sunshine çalışmıyor", "Sunshine is not running on the host"))
 	}
 	if !sunReachable(c.HostIP, info.SunPort) {
-		logf("Sunshine portları yanıt vermiyor: %s:%d", c.HostIP, sunPortOr(info.SunPort))
-		return errors.New(sunUnreachableMsg)
+		logf(L("Sunshine portları yanıt vermiyor: %s:%d", "Sunshine's ports do not answer: %s:%d"), c.HostIP, sunPortOr(info.SunPort))
+		return errors.New(sunUnreachableMsg())
 	}
 
-	j.Logf("%s'den izin isteniyor, cevabı bekleniyor...", hostLabel(c))
+	j.Logf(L("%s'den izin isteniyor, cevabı bekleniyor...", "Asking %s for permission, waiting for the answer..."), hostLabel(c))
 	name, _ := os.Hostname()
 	var ask struct {
 		OK    bool   `json:"ok"`
 		Error string `json:"error"`
 	}
 	if err := agentCall(c.HostIP, c.AgentPort, c.Secret, "POST", "/krp/request", map[string]string{"name": name}, connAskTime+15*time.Second, &ask); err != nil {
-		return fmt.Errorf("izin istenemedi: %v", err)
+		return fmt.Errorf(L("izin istenemedi: %v", "could not ask for permission: %v"), err)
 	}
 	if !ask.OK {
 		return errors.New(ask.Error)
 	}
 
-	j.Logf("Daha önce eşleşmiş mi kontrol ediliyor...")
+	j.Logf("%s", L("Daha önce eşleşmiş mi kontrol ediliyor...", "Checking for an earlier pairing..."))
 	apps, lerr := mlListApps(c.HostIP)
 	if lerr == nil {
 		clientSetPaired(apps)
-		j.Logf("Zaten eşleşmiş. Hazırsın.")
+		j.Logf("%s", L("Zaten eşleşmiş. Hazırsın.", "Already paired. You are ready."))
 		return nil
 	}
-	logf("Moonlight listesi: %v", lerr)
+	logf(L("Moonlight listesi: %v", "Moonlight list: %v"), lerr)
 
 	pin := randPIN()
 	cmd, err := mlStartPair(c.HostIP, pin)
@@ -437,7 +439,7 @@ func clientPair(j *Job) error {
 			_ = cmd.Process.Kill()
 		}
 	}()
-	j.Logf("Moonlight eşleştirme penceresi açıldı, PIN host'a otomatik gönderiliyor...")
+	j.Logf("%s", L("Moonlight eşleştirme penceresi açıldı, PIN host'a otomatik gönderiliyor...", "Moonlight's pairing window is open, sending the PIN to the host..."))
 	time.Sleep(2 * time.Second)
 	var res struct {
 		OK    bool   `json:"ok"`
@@ -451,12 +453,12 @@ func clientPair(j *Job) error {
 		// Moonlight may have been paired after all (then its window only says so).
 		if apps, err := mlListApps(c.HostIP); err == nil {
 			clientSetPaired(apps)
-			j.Logf("Bağlantı hazır. Oyna'ya basabilirsin.")
+			j.Logf("%s", msgReady())
 			return nil
 		}
-		return fmt.Errorf("host eşleştirmeyi onaylayamadı: %v", perr)
+		return fmt.Errorf(L("host eşleştirmeyi onaylayamadı: %v", "the host could not approve the pairing: %v"), perr)
 	}
-	j.Logf("Host onayladı, eşleştirme tamamlanıyor...")
+	j.Logf("%s", L("Host onayladı, eşleştirme tamamlanıyor...", "The host approved, finishing the pairing..."))
 	deadline := time.Now().Add(60 * time.Second)
 	for {
 		select {
@@ -469,11 +471,15 @@ func clientPair(j *Job) error {
 		}
 	}
 	if lerr != nil {
-		return fmt.Errorf("eşleştirme tamamlanamadı: %v", lerr)
+		return fmt.Errorf(L("eşleştirme tamamlanamadı: %v", "pairing did not finish: %v"), lerr)
 	}
 	clientSetPaired(apps)
-	j.Logf("Bağlantı hazır. Oyna'ya basabilirsin.")
+	j.Logf("%s", msgReady())
 	return nil
+}
+
+func msgReady() string {
+	return L("Bağlantı hazır. Oyna'ya basabilirsin.", "Connection ready. You can press Play.")
 }
 
 func clientSetPaired(apps []string) {
@@ -500,7 +506,7 @@ func clientRefreshApps(j *Job) error {
 		return err
 	}
 	clientSetPaired(apps)
-	j.Logf("%d uygulama bulundu.", len(apps))
+	j.Logf(L("%d uygulama bulundu.", "%d apps found."), len(apps))
 	return nil
 }
 
@@ -510,7 +516,7 @@ func clientRejoin(j *Job) error {
 	if err := clientEnsureNet(j); err != nil {
 		return err
 	}
-	j.Logf("Host'un ağına bağlısın.")
+	j.Logf("%s", L("Host'un ağına bağlısın.", "You are on the host's network."))
 	return nil
 }
 
@@ -522,27 +528,27 @@ func needsMeasurement(s StreamSettings) bool {
 func clientMeasure(j *Job) (*SpeedResult, error) {
 	c := getConfig().Client
 	if c.HostIP == "" {
-		return nil, errors.New("önce host'a bağlan")
+		return nil, errors.New(L("önce host'a bağlan", "connect to the host first"))
 	}
-	j.Logf("Hat ölçülüyor (yaklaşık 5 saniye)...")
+	j.Logf("%s", L("Hat ölçülüyor (yaklaşık 5 saniye)...", "Testing the line (about 5 seconds)..."))
 	mbps, err := measureSpeed(c.HostIP, c.AgentPort, c.Secret, 5*time.Second, 3)
 	if err != nil {
-		return nil, fmt.Errorf("hat ölçülemedi: %v (host'ta KeRemotePlay açık olmalı)", err)
+		return nil, fmt.Errorf(L("hat ölçülemedi: %v (host'ta KeRemotePlay açık olmalı)", "could not test the line: %v (KeRemotePlay must be open on the host)"), err)
 	}
 	res := &SpeedResult{Mbps: math.Round(mbps*10) / 10, At: time.Now().Unix()}
 	withConfig(func(cf *Config) { cf.Client.Speed = res })
-	j.Logf("Host → bu bilgisayar: %.1f Mbps", res.Mbps)
+	j.Logf(L("Host → bu bilgisayar: %.1f Mbps", "Host → this PC: %.1f Mbps"), res.Mbps)
 	if res.Mbps < 8 {
-		j.Logf("Hat düşük. Genelde sebep host'un internet paketindeki upload hızıdır.")
+		j.Logf("%s", L("Hat düşük. Genelde sebep host'un internet paketindeki upload hızıdır.", "The line is slow. Usually the host's upload speed is the reason."))
 	}
 	return res, nil
 }
 
 // clientPlay does whatever is still missing (install, network, pairing) and
-// starts the stream, so "Oyna" works however the last session ended.
+// starts the stream, so "Play" works however the last session ended.
 func clientPlay(j *Job, app string) error {
 	if streaming() {
-		return errors.New("yayın zaten açık; önce Moonlight penceresini kapat")
+		return errors.New(L("yayın zaten açık; önce Moonlight penceresini kapat", "the stream is already open; close the Moonlight window first"))
 	}
 	if err := clientInstall(j); err != nil {
 		return err
@@ -552,7 +558,7 @@ func clientPlay(j *Job, app string) error {
 	}
 	c := getConfig().Client
 	// Takes a moment when paired; also notices a host that forgot this PC.
-	j.Logf("Host kontrol ediliyor...")
+	j.Logf("%s", L("Host kontrol ediliyor...", "Checking the host..."))
 	apps, lerr := mlListAppsWithin(c.HostIP, 12*time.Second)
 	switch {
 	case lerr == nil:
@@ -562,7 +568,7 @@ func clientPlay(j *Job, app string) error {
 			return err
 		}
 	default:
-		logf("Moonlight listesi: %v", lerr)
+		logf(L("Moonlight listesi: %v", "Moonlight list: %v"), lerr)
 	}
 	c = getConfig().Client
 	if len(c.Apps) > 0 && !slices.Contains(c.Apps, app) {
@@ -575,15 +581,15 @@ func clientPlay(j *Job, app string) error {
 		} else {
 			j.Logf("%v", err)
 			if sp != nil {
-				j.Logf("Son ölçüm kullanılıyor: %.1f Mbps", sp.Mbps)
+				j.Logf(L("Son ölçüm kullanılıyor: %.1f Mbps", "Using the last test: %.1f Mbps"), sp.Mbps)
 			} else {
-				j.Logf("Ölçüm yok; güvenli ayar seçiliyor.")
+				j.Logf("%s", L("Ölçüm yok; güvenli ayar seçiliyor.", "No test result; picking safe settings."))
 			}
 		}
 	}
 	ed := effectiveDisplay(clientDisplay(), c.HostDisp)
 	plan := makePlan(c.Stream, sp, ed.W, ed.H, ed.Hz)
-	j.Logf("Ayar: %s, %.1f Mbps", plan.Label, float64(plan.BitrateKbps)/1000)
+	j.Logf(L("Ayar: %s, %.1f Mbps", "Settings: %s, %.1f Mbps"), plan.Label, float64(plan.BitrateKbps)/1000)
 	if plan.Note != "" {
 		j.Logf("%s", plan.Note)
 	}
@@ -592,11 +598,11 @@ func clientPlay(j *Job, app string) error {
 	// --quit-after: closing Moonlight ends the session on the host too, so the
 	// host notices it and the next connection has to be approved again.
 	args := append(plan.moonlightArgs(), "--no-audio-on-host", "--quit-after")
-	logf("Yayın başlatılıyor: %s → %s %v", c.HostIP, app, args)
+	logf(L("Yayın başlatılıyor: %s → %s %v", "Starting the stream: %s → %s %v"), c.HostIP, app, args)
 	if err := mlStream(c.HostIP, app, args); err != nil {
 		return err
 	}
-	j.Logf("Moonlight açılıyor: %s", app)
+	j.Logf(L("Moonlight açılıyor: %s", "Opening Moonlight: %s"), app)
 	return nil
 }
 
@@ -605,7 +611,10 @@ func clientDisplay() DisplayInfo {
 	return DisplayInfo{W: w, H: h, Hz: hz}
 }
 
-const sunUnreachableMsg = "Host'taki KeRemotePlay'e ulaşılıyor ama Sunshine'a ulaşılamıyor; büyük ihtimalle host'un Windows güvenlik duvarı engelliyor. Host KeRemotePlay'i 0.9.2 ya da sonrasına güncelleyip \"Devam et\"e bassın (güvenlik duvarı izni eklenir), sonra tekrar dene"
+func sunUnreachableMsg() string {
+	return L("Host'taki KeRemotePlay'e ulaşılıyor ama Sunshine'a ulaşılamıyor; büyük ihtimalle host'un Windows güvenlik duvarı engelliyor. Host KeRemotePlay'i 0.9.2 ya da sonrasına güncelleyip \"Devam et\"e bassın (güvenlik duvarı izni eklenir), sonra tekrar dene",
+		"KeRemotePlay on the host answers but Sunshine does not; most likely the host's Windows firewall blocks it. The host should update KeRemotePlay to 0.9.2 or later and press \"Continue\" (this adds the firewall rule), then try again")
+}
 
 func sunPortOr(p int) int {
 	if p <= 0 {

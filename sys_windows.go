@@ -149,9 +149,9 @@ func runElevated(args []string) error {
 	out, err := runPowerShell(script)
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1223 {
-			return fmt.Errorf("yönetici izni verilmedi (UAC penceresinde Evet'e basmak gerekiyor)")
+			return errors.New(L("yönetici izni verilmedi (UAC penceresinde Evet'e basmak gerekiyor)", "admin permission was not given (press Yes in the UAC window)"))
 		}
-		return fmt.Errorf("yönetici işlemi başarısız: %v %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf(L("yönetici işlemi başarısız: %v %s", "the admin step failed: %v %s"), err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -236,7 +236,7 @@ func primaryDisplay() (w, h, hz int) {
 func openTailscaleApp() error {
 	p := findExe([]string{`Tailscale\tailscale-ipn.exe`}, "")
 	if p == "" {
-		return errors.New("Tailscale uygulaması bulunamadı")
+		return errors.New(L("Tailscale uygulaması bulunamadı", "the Tailscale app was not found"))
 	}
 	return exec.Command(p).Start()
 }

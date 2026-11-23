@@ -28,7 +28,14 @@ var components = map[string]component{
 	"sunshine":  {"Sunshine", "LizardByte.Sunshine", "https://github.com/LizardByte/Sunshine/releases/latest", sunshineExe},
 	"tailscale": {"Tailscale", "Tailscale.Tailscale", "https://tailscale.com/download/windows", tailscaleExe},
 	"moonlight": {"Moonlight", "MoonlightGameStreamingProject.Moonlight", "https://moonlight-stream.org/", moonlightExe},
-	"vigembus":  {"ViGEmBus (kol sürücüsü)", "ViGEm.ViGEmBus", "https://github.com/nefarius/ViGEmBus/releases/latest", vigemPath},
+	"vigembus":  {"ViGEmBus", "ViGEm.ViGEmBus", "https://github.com/nefarius/ViGEmBus/releases/latest", vigemPath},
+}
+
+func (c component) label() string {
+	if c.WingetID == "ViGEm.ViGEmBus" {
+		return L("ViGEmBus (kol sürücüsü)", "ViGEmBus (controller driver)")
+	}
+	return c.Label
 }
 
 func isProgressLine(s string) bool {
@@ -47,9 +54,10 @@ func wingetInstall(key string, logl func(string, ...any)) error {
 	}
 	winget := wingetPath()
 	if winget == "" {
-		return fmt.Errorf("winget bulunamadı; %s elle kurulmalı: %s (Microsoft Store'dan \"Uygulama Yükleyici\" güncellenirse winget de gelir)", comp.Label, comp.ManualURL)
+		return fmt.Errorf(L("winget bulunamadı; %s elle kurulmalı: %s (Microsoft Store'dan \"Uygulama Yükleyici\" güncellenirse winget de gelir)",
+			"winget not found; install %s by hand: %s (updating \"App Installer\" from the Microsoft Store brings winget too)"), comp.label(), comp.ManualURL)
 	}
-	logl("%s indiriliyor ve kuruluyor...", comp.Label)
+	logl(L("%s indiriliyor ve kuruluyor...", "Downloading and installing %s..."), comp.label())
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 	c := exec.CommandContext(ctx, winget, "install", "--id", comp.WingetID, "-e", "--silent",
@@ -82,11 +90,11 @@ func wingetInstall(key string, logl func(string, ...any)) error {
 	if comp.Find() == "" {
 		logf("winget %s: %v | %s", comp.WingetID, werr, strings.Join(tail, " | "))
 		if werr != nil {
-			return fmt.Errorf("%s kurulamadı (%v). Elle kurmak için: %s", comp.Label, werr, comp.ManualURL)
+			return fmt.Errorf(L("%s kurulamadı (%v). Elle kurmak için: %s", "could not install %s (%v). To install it by hand: %s"), comp.label(), werr, comp.ManualURL)
 		}
-		return fmt.Errorf("%s kuruldu görünüyor ama bulunamadı; bilgisayarı yeniden başlatmayı dene", comp.Label)
+		return fmt.Errorf(L("%s kuruldu görünüyor ama bulunamadı; bilgisayarı yeniden başlatmayı dene", "%s seems installed but cannot be found; try restarting the PC"), comp.label())
 	}
-	logl("%s kuruldu.", comp.Label)
+	logl(L("%s kuruldu.", "%s installed."), comp.label())
 	return nil
 }
 
@@ -117,6 +125,7 @@ type elevReq struct {
 	Pass     string   `json:"pass,omitempty"`
 	Firewall bool     `json:"firewall,omitempty"`
 	Legacy   bool     `json:"legacy,omitempty"`
+	Lang     string   `json:"lang,omitempty"` // the elevated copy reports in the app's language
 }
 
 func (r elevReq) empty() bool {
@@ -138,11 +147,12 @@ func elevate(j *Job, req elevReq) error {
 	}
 	defer os.RemoveAll(dir)
 	reqPath := filepath.Join(dir, "req.json")
+	req.Lang = lang()
 	b, _ := json.Marshal(req)
 	if err := os.WriteFile(reqPath, b, 0o600); err != nil {
 		return err
 	}
-	j.Logf("Windows bir kez izin soracak: Evet'e bas.")
+	j.Logf("%s", L("Windows bir kez izin soracak: Evet'e bas.", "Windows will ask for permission once: press Yes."))
 	done := make(chan error, 1)
 	go func() { done <- runElevated([]string{"--elevated", reqPath}) }()
 	shown := 0
@@ -176,7 +186,7 @@ func elevate(j *Job, req elevReq) error {
 	}
 	if !resp.OK {
 		if resp.Err == "" {
-			resp.Err = "yönetici işlemi sonuç vermedi"
+			resp.Err = L("yönetici işlemi sonuç vermedi", "the admin step gave no result")
 		}
 		return errors.New(resp.Err)
 	}
@@ -207,9 +217,10 @@ func elevatedMain(reqPath string) int {
 	_ = os.Remove(reqPath) // contains a password; delete as soon as read
 	var req elevReq
 	if err := json.Unmarshal(b, &req); err != nil || req.Action != "setup" {
-		resp.Err = "geçersiz istek"
+		resp.Err = "invalid request"
 		return 1
 	}
+	setLang(req.Lang)
 	if err := runSetup(req, logl); err != nil {
 		resp.Err = err.Error()
 		return 1
@@ -239,24 +250,24 @@ func runSetup(req elevReq, logl func(string, ...any)) error {
 		}
 		if err := wingetInstall(key, logl); err != nil {
 			logl("%v", err)
-			failed = append(failed, components[key].Label)
+			failed = append(failed, components[key].label())
 		}
 	}
 	restartSun := false
 	if req.User != "" && req.Pass != "" {
 		exe := sunshineExe()
 		if exe == "" {
-			return errors.New("Sunshine kurulamadığı için ayarlanamadı")
+			return errors.New(L("Sunshine kurulamadığı için ayarlanamadı", "Sunshine could not be set up because it is not installed"))
 		}
-		logl("Sunshine ayarlanıyor...")
+		logl("%s", L("Sunshine ayarlanıyor...", "Setting up Sunshine..."))
 		if err := run(30*time.Second, exe, "--creds", req.User, req.Pass); err != nil {
-			return fmt.Errorf("Sunshine ayarlanamadı: %v", err)
+			return fmt.Errorf(L("Sunshine ayarlanamadı: %v", "could not set up Sunshine: %v"), err)
 		}
 		restartSun = true
 	}
 	if conf := sunshineConfFile(); conf != "" {
 		if changed, err := tuneSunshineConf(conf); err != nil {
-			logf("Sunshine ayar dosyası güncellenemedi: %v", err)
+			logf(L("Sunshine ayar dosyası güncellenemedi: %v", "Could not update Sunshine's config file: %v"), err)
 		} else if changed {
 			restartSun = true
 		}
@@ -265,19 +276,19 @@ func runSetup(req elevReq, logl func(string, ...any)) error {
 		// Sunshine runs only while the host screen is open: it does not start with
 		// Windows, and the app may start and stop it without asking every time.
 		if err := run(30*time.Second, "sc", "config", "SunshineService", "start=", "demand"); err != nil {
-			logl("Sunshine ayarlanamadı: %v", err)
+			logl(L("Sunshine ayarlanamadı: %v", "Could not set up Sunshine: %v"), err)
 		}
 		if err := allowServiceControl(req.SID); err != nil {
-			logf("Sunshine servis izni verilemedi: %v", err)
-			logl("Sunshine'ı kapatma izni verilemedi; Başa dön'de açık kalabilir.")
+			logf(L("Sunshine servis izni verilemedi: %v", "Could not grant the Sunshine service permission: %v"), err)
+			logl("%s", L("Sunshine'ı kapatma izni verilemedi; Başa dön'de açık kalabilir.", "Could not get permission to stop Sunshine; it may stay on after Back to start."))
 		}
 		restartSun = true
 	}
 	if restartSun {
-		logl("Sunshine başlatılıyor...")
+		logl("%s", L("Sunshine başlatılıyor...", "Starting Sunshine..."))
 		_ = run(60*time.Second, "net", "stop", "SunshineService")
 		if err := run(60*time.Second, "net", "start", "SunshineService"); err != nil {
-			logl("Sunshine servisi başlatılamadı; bilgisayarı yeniden başlatmak gerekebilir.")
+			logl("%s", L("Sunshine servisi başlatılamadı; bilgisayarı yeniden başlatmak gerekebilir.", "Could not start the Sunshine service; a restart of the PC may be needed."))
 		}
 	}
 	if req.TSUnatt && tailscaleExe() != "" {
@@ -289,14 +300,14 @@ func runSetup(req elevReq, logl func(string, ...any)) error {
 	}
 	if req.Firewall {
 		if err := addFirewallRule(run); err != nil {
-			logl("Güvenlik duvarı izni eklenemedi: %v", err)
+			logl(L("Güvenlik duvarı izni eklenemedi: %v", "Could not add the firewall rule: %v"), err)
 		}
 	}
 	if req.Legacy {
 		legacyCleanup(logl)
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("kurulamadı: %s", strings.Join(failed, ", "))
+		return fmt.Errorf(L("kurulamadı: %s", "could not install: %s"), strings.Join(failed, ", "))
 	}
 	return nil
 }

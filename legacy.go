@@ -65,14 +65,14 @@ func legacyCleanup(logl func(string, ...any)) {
 			continue
 		}
 		if err := padSwitchOn(id); err != nil {
-			logl("Kapalı kalan kol açılamadı (%v). Aygıt Yöneticisi'nden \"Cihazı etkinleştir\" ya da bilgisayarı yeniden başlat.", err)
+			logl(L("Kapalı kalan kol açılamadı (%v). Aygıt Yöneticisi'nden \"Cihazı etkinleştir\" ya da bilgisayarı yeniden başlat.", "Could not re-enable a disabled controller (%v). Use \"Enable device\" in Device Manager or restart the PC."), err)
 		} else {
-			logl("Eski sürümün kapalı bıraktığı kol açıldı.")
+			logl("%s", L("Eski sürümün kapalı bıraktığı kol açıldı.", "Re-enabled a controller the old version had left disabled."))
 		}
 	}
 	if legacyTaskPresent() {
 		removeLegacyTask()
-		logl("Eski kol sıralama görevi kaldırıldı.")
+		logl("%s", L("Eski kol sıralama görevi kaldırıldı.", "Removed the old controller order task."))
 	}
 	for _, f := range []string{"padorder-state.json", "padorder-req.json", "padorder.log"} {
 		_ = os.Remove(filepath.Join(dataDir(), f))

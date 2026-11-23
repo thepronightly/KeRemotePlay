@@ -25,7 +25,7 @@ func main() {
 	loadConfig()
 	// Sunshine only runs on the host screen; it may be left over from a crash.
 	if s := sunServiceState(); s.Running && s.CanControl {
-		logf("Açık kalmış Sunshine kapatılıyor")
+		logf("%s", L("Açık kalmış Sunshine kapatılıyor", "Stopping a Sunshine left running"))
 		_ = sunServiceSet(false)
 	}
 	go healthLoop()
@@ -37,12 +37,12 @@ func main() {
 	}
 	url, err := startUI(addr)
 	if err != nil {
-		logf("Arayüz başlatılamadı: %v", err)
+		logf(L("Arayüz başlatılamadı: %v", "Could not start the interface: %v"), err)
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	base, _, _ := strings.Cut(url, "?")
-	logf("Arayüz: %s", base)
+	logf(L("Arayüz: %s", "Interface: %s"), base)
 	runWindow(url)
-	leaveRole(&Job{Name: "Çıkış"}, getConfig().Mode)
+	leaveRole(&Job{Name: L("Çıkış", "Exit")}, getConfig().Mode)
 }

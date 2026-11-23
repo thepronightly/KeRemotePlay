@@ -25,7 +25,7 @@ var (
 	pGlobalLock      = kernel32.NewProc("GlobalLock")
 	pGlobalUnlock    = kernel32.NewProc("GlobalUnlock")
 	pGlobalSize      = kernel32.NewProc("GlobalSize")
-	errClipboardBusy = errors.New("pano meşgul")
+	errClipboardBusy = newErr("pano meşgul", "the clipboard is busy")
 )
 
 const cfUnicodeText = 13
@@ -88,18 +88,18 @@ func clipWriteText(s string) error {
 	const gmemMoveable = 0x2
 	h, _, _ := pGlobalAlloc.Call(gmemMoveable, uintptr(len(u)*2))
 	if h == 0 {
-		return errors.New("bellek ayrılamadı")
+		return errors.New(L("bellek ayrılamadı", "could not allocate memory"))
 	}
 	p, _, _ := pGlobalLock.Call(h)
 	if p == 0 {
 		pGlobalFree.Call(h)
-		return errors.New("bellek kilitlenemedi")
+		return errors.New(L("bellek kilitlenemedi", "could not lock memory"))
 	}
 	copy(unsafe.Slice((*uint16)(*(*unsafe.Pointer)(unsafe.Pointer(&p))), len(u)), u)
 	pGlobalUnlock.Call(h)
 	if r, _, _ := pSetClipboard.Call(cfUnicodeText, h); r == 0 {
 		pGlobalFree.Call(h)
-		return errors.New("panoya yazılamadı")
+		return errors.New(L("panoya yazılamadı", "could not write to the clipboard"))
 	}
 	return nil
 }

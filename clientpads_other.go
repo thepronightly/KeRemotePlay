@@ -2,10 +2,7 @@
 
 package main
 
-import (
-	"errors"
-	"sync"
-)
+import "sync"
 
 // Development stub: one recognized Xbox pad and one unknown DirectInput pad. The
 // wizard is driven by scripted snapshots so the UI flow can be tried on Linux.
@@ -63,7 +60,7 @@ func clientPadCommand(op, guid string) error {
 		stubWiz = nil
 	case "save":
 		if stubWiz == nil {
-			return errors.New("tanıtma açık değil")
+			return errNoWizard
 		}
 		if err := stubWiz.complete(); err != nil {
 			return err
@@ -78,7 +75,7 @@ func clientPadCommand(op, guid string) error {
 		stubWiz = nil
 	case "test":
 		setPadsView(func(v *PadsView) {
-			v.Test = &TestView{GUID: guid, Name: "Kol", Pressed: []string{"A", "Sol analog →"}}
+			v.Test = &TestView{GUID: guid, Name: "Controller", Pressed: []string{"A", stickName(true) + " →"}}
 		})
 		return nil
 	case "test-stop":

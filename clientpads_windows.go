@@ -31,7 +31,7 @@ const (
 func loadSDL() (*sdl, error) {
 	exe := moonlightExe()
 	if exe == "" {
-		return nil, errors.New("Moonlight kurulu değil")
+		return nil, errNoMoonlight
 	}
 	dir := filepath.Dir(exe)
 	// Newer Moonlight builds ship sdl2-compat: its SDL2.dll loads "SDL3.dll" by bare
@@ -40,12 +40,12 @@ func loadSDL() (*sdl, error) {
 	// makes that bare-name lookup find the already-loaded module.
 	if p := filepath.Join(dir, "SDL3.dll"); fileExists(p) {
 		if _, err := syscall.LoadLibrary(p); err != nil {
-			return nil, fmt.Errorf("Moonlight'ın SDL3.dll dosyası yüklenemedi: %v", err)
+			return nil, fmt.Errorf(L("Moonlight'ın SDL3.dll dosyası yüklenemedi: %v", "could not load Moonlight's SDL3.dll: %v"), err)
 		}
 	}
 	d := syscall.NewLazyDLL(filepath.Join(dir, "SDL2.dll"))
 	if err := d.Load(); err != nil {
-		return nil, fmt.Errorf("Moonlight'ın SDL2.dll dosyası yüklenemedi: %v", err)
+		return nil, fmt.Errorf(L("Moonlight'ın SDL2.dll dosyası yüklenemedi: %v", "could not load Moonlight's SDL2.dll: %v"), err)
 	}
 	s := &sdl{dll: d, procs: map[string]*syscall.LazyProc{}}
 	for _, n := range []string{"SDL_SetHint", "SDL_Init", "SDL_QuitSubSystem", "SDL_GetError", "SDL_PumpEvents",
@@ -56,7 +56,7 @@ func loadSDL() (*sdl, error) {
 		"SDL_GameControllerAddMapping", "SDL_RWFromConstMem", "SDL_GameControllerAddMappingsFromRW"} {
 		p := d.NewProc(n)
 		if err := p.Find(); err != nil {
-			return nil, fmt.Errorf("SDL2.dll beklenen fonksiyonu içermiyor: %s", n)
+			return nil, fmt.Errorf(L("SDL2.dll beklenen fonksiyonu içermiyor: %s", "SDL2.dll lacks an expected function: %s"), n)
 		}
 		s.procs[n] = p
 	}
@@ -159,13 +159,13 @@ func clientPadCommand(op, guid string) error {
 	select {
 	case cpadCmds <- c:
 	case <-time.After(2 * time.Second):
-		return errors.New("kol servisi meşgul")
+		return errors.New(L("kol servisi meşgul", "the controller service is busy"))
 	}
 	select {
 	case err := <-c.resp:
 		return err
 	case <-time.After(5 * time.Second):
-		return errors.New("kol servisi yanıt vermedi")
+		return errors.New(L("kol servisi yanıt vermedi", "the controller service did not answer"))
 	}
 }
 
@@ -204,7 +204,7 @@ func clientPadLoop() {
 		s.call("SDL_SetHint", cstr("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"), cstr("1"))
 		s.call("SDL_SetHint", cstr("SDL_JOYSTICK_THREAD"), cstr("1"))
 		if r := int32(s.call("SDL_Init", sdlInitJoystick|sdlInitGameController|sdlInitEvents)); r != 0 {
-			return fmt.Errorf("SDL başlatılamadı: %s", s.errStr())
+			return fmt.Errorf(L("SDL başlatılamadı: %s", "could not start SDL: %s"), s.errStr())
 		}
 		rw := s.call("SDL_RWFromConstMem", uintptr(unsafe.Pointer(&gameControllerDB[0])), uintptr(len(gameControllerDB)))
 		if rw != 0 {
@@ -251,7 +251,7 @@ func clientPadLoop() {
 			case <-cpadTouch:
 				lastTouch = time.Now()
 			case c := <-cpadCmds:
-				c.resp <- errors.New("yayın sürerken kollar Moonlight'ta; yayını kapatınca tekrar dene")
+				c.resp <- errors.New(L("yayın sürerken kollar Moonlight'ta; yayını kapatınca tekrar dene", "Moonlight has the controllers during a stream; try again after it closes"))
 			case <-time.After(time.Second):
 			}
 			continue
@@ -285,12 +285,12 @@ func clientPadLoop() {
 				}
 				idx, name := findIndex(c.guid)
 				if idx < 0 {
-					err = errors.New("kol bulunamadı (çıkarılmış olabilir)")
+					err = errors.New(L("kol bulunamadı (çıkarılmış olabilir)", "controller not found (it may have been unplugged)"))
 					break
 				}
 				wizJoy = s.call("SDL_JoystickOpen", uintptr(idx))
 				if wizJoy == 0 {
-					err = fmt.Errorf("kol açılamadı: %s", s.errStr())
+					err = fmt.Errorf(L("kol açılamadı: %s", "could not open the controller: %s"), s.errStr())
 					break
 				}
 				// Let the pad settle, then take its resting state as the baseline.
@@ -315,7 +315,7 @@ func clientPadLoop() {
 				setPadsView(func(v *PadsView) { v.Wizard = nil })
 			case "save":
 				if wiz == nil {
-					err = errors.New("tanıtma açık değil")
+					err = errNoWizard
 					break
 				}
 				if err = wiz.complete(); err != nil {
@@ -330,7 +330,7 @@ func clientPadLoop() {
 					cf.Client.Mappings[g] = m
 				})
 				s.call("SDL_GameControllerAddMapping", cstr(m))
-				logf("Kol tanıtıldı: %s", m)
+				logf(L("Kol tanıtıldı: %s", "Controller set up: %s"), m)
 				if wizJoy != 0 {
 					s.call("SDL_JoystickClose", wizJoy)
 					wizJoy = 0
@@ -345,12 +345,12 @@ func clientPadLoop() {
 				}
 				idx, name := findIndex(c.guid)
 				if idx < 0 {
-					err = errors.New("kol bulunamadı")
+					err = errors.New(L("kol bulunamadı", "controller not found"))
 					break
 				}
 				testGC = s.call("SDL_GameControllerOpen", uintptr(idx))
 				if testGC == 0 {
-					err = errors.New("Moonlight bu kolu henüz tanımıyor; önce tanıt")
+					err = errors.New(L("Moonlight bu kolu henüz tanımıyor; önce tanıt", "Moonlight does not know this controller yet; set it up first"))
 					break
 				}
 				testGUID, testName = c.guid, name
@@ -361,7 +361,7 @@ func clientPadLoop() {
 				}
 				setPadsView(func(v *PadsView) { v.Test = nil })
 			default:
-				err = errors.New("bilinmeyen komut")
+				err = errors.New(L("bilinmeyen komut", "unknown command"))
 			}
 			c.resp <- err
 		case <-time.After(func() time.Duration {
@@ -395,7 +395,8 @@ func clientPadLoop() {
 				a   int
 				neg string
 				pos string
-			}{{0, "Sol analog ←", "Sol analog →"}, {1, "Sol analog ↑", "Sol analog ↓"}, {2, "Sağ analog ←", "Sağ analog →"}, {3, "Sağ analog ↑", "Sağ analog ↓"}} {
+			}{{0, stickName(true) + " ←", stickName(true) + " →"}, {1, stickName(true) + " ↑", stickName(true) + " ↓"},
+				{2, stickName(false) + " ←", stickName(false) + " →"}, {3, stickName(false) + " ↑", stickName(false) + " ↓"}} {
 				if v := ax(st.a); v < -16000 {
 					pressed = append(pressed, st.neg)
 				} else if v > 16000 {

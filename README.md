@@ -1,277 +1,302 @@
 # KeRemotePlay
 
-Sunshine + Tailscale + Moonlight üçlüsünü tek bir küçük uygulamadan kuran ve yöneten araç.
-Yayın motoru Sunshine/Moonlight olarak kalıyor. KeRemotePlay kurulumu, ağı, eşleştirmeyi ve
-"neden takılıyor?" sorusunun cevabını üstleniyor.
+**English** · [Türkçe](README.tr.md)
 
-> **Sürüm 0.9.6 (beta).** Bir arkadaş grubu için yazıldı ve öyle kullanılıyor. Kullanmadan önce
-> **[Güvenlik ve bilinen sınırlar](#güvenlik-ve-bilinen-sınırlar)** bölümünü oku: bağlantı kodu
-> Tailscale ağına giriş anahtarı taşır, arkadaşın ekranını görür ve klavyeni kullanabilir.
-> Bir şey takılırsa `%APPDATA%\KeRemotePlay\krp.log` kaydına bak.
+One small Windows app that installs and runs the Sunshine + Tailscale + Moonlight trio for you.
+Streaming is still done by Sunshine/Moonlight. KeRemotePlay takes care of the setup, the network,
+the pairing and the "why does it stutter?" question.
 
-## Nasıl çalışıyor
+It was made for **couch co-op over the internet**: you play a game like FIFA on your PC, your
+friend joins from home with their own controller, and you talk on Discord.
+
+The app speaks English and Turkish. It starts in your Windows display language; the **EN / TR**
+button at the top right switches it, and the choice is remembered.
+
+> **Version 0.9.7 (beta).** Written for a group of friends and used that way. Before using it, read
+> **[Security and known limits](#security-and-known-limits)**: the connection code carries a key
+> to your Tailscale network, and your friend sees your screen and can use your keyboard.
+> If something goes wrong, look at the log in `%APPDATA%\KeRemotePlay\krp.log`.
+
+## How it works
 
 ```
- Arkadaşın PC'si (Client)                         Senin PC'n (Host)
+ Friend's PC (Client)                              Your PC (Host)
  ┌──────────────────────┐   Tailscale (WireGuard)  ┌──────────────────────┐
  │ KeRemotePlay         │ ◀──────────────────────▶ │ KeRemotePlay         │
- │  └ Moonlight         │   doğrudan P2P, olmazsa  │  ├ Sunshine (yayın)  │
- │                      │   relay                  │  └ Eşleştirme servisi│
+ │  └ Moonlight         │   direct P2P, relay if   │  ├ Sunshine (stream) │
+ │                      │   it has to              │  └ Pairing service   │
  └──────────────────────┘                          │     (port 47900)     │
                                                    └──────────────────────┘
 ```
 
-1. Host, Tailscale'e bir kez kendi (ücretsiz) hesabıyla giriş yapar ve bir **auth key** üretir.
-2. Program her açıldığında sorar: Host mu, Client mı? Host'a basınca gereken servisler arkada
-   açılır ve yeni bir **bağlantı kodu** (`KRP1-…`) üretilir. Kod kaydedilmez, her seferinde değişir.
-3. Arkadaşın kodu yapıştırır. Uygulama onu host'un Tailscale ağına sokar ve host'a sorar:
-   *"arkadas-pc bilgisayarınıza bağlanmak istiyor. İzin verilsin mi?"*
-4. Host **Evet** derse Moonlight rastgele bir PIN'le eşleştirilir. **Kimse PIN yazmaz.**
-5. Sonrası sadece **▶ Oyna**. Oturum bitince eşleşme silinir; yeni bağlantı yine izin ister.
+1. The host logs into Tailscale once with their own (free) account and makes an **auth key**.
+2. Each time the app opens it asks: Host or Client? Pressing Host starts the needed services in
+   the background and makes a new **connection code** (`KRP1-…`). The code is not saved; it is new
+   every time.
+3. Your friend pastes the code. The app puts them on the host's Tailscale network and asks the host:
+   *"friend-pc wants to connect to your PC. Allow it?"*
+4. If the host says **Yes**, Moonlight is paired with a random PIN. **Nobody types a PIN.**
+5. After that it is just **▶ Play**. When the session ends the pairing is removed; the next
+   connection asks for permission again.
 
-## Kullanım
+## Usage
 
-İkiniz de `KeRemotePlay.exe`'yi açarsınız. Başka bir şey kurmanız gerekmez. Program her açılışta
-**Host** mu **Client** mı olacağını sorar.
+You both open `KeRemotePlay.exe`. Nothing else needs to be installed first. Each time it opens, the
+app asks whether this PC is the **Host** or the **Client**.
 
-**Oyunun çalıştığı PC (sen):** **Host**'a bas.
-1. Eksik programlar (Sunshine, Tailscale, kol sürücüsü ViGEmBus) indirilip kurulur, Sunshine
-   ayarlanır, güvenlik duvarı izni eklenir. Hepsi için Windows **bir kez** izin sorar.
-2. *İlk sefer:* Tarayıcıda Tailscale açılır; Google/Microsoft/GitHub ile giriş yap.
-3. *İlk sefer:* Tailscale anahtar sayfası açılır: **Generate auth key…** → **Reusable** →
-   **Generate key** → **Copy**. KeRemotePlay anahtarı panodan kendisi alır.
-4. Bağlantı kodu hazır ve **panoya kopyalanmış** olur. Arkadaşına yapıştırıp gönder.
+**The PC that runs the game (you):** press **Host**.
+1. Missing programs (Sunshine, Tailscale, the ViGEmBus controller driver) are downloaded and
+   installed, Sunshine is set up and a firewall rule is added. Windows asks for permission **once**
+   for all of it.
+2. *First time:* Tailscale opens in the browser; log in with Google/Microsoft/GitHub.
+3. *First time:* the Tailscale keys page opens: **Generate auth key…** → **Reusable** →
+   **Generate key** → **Copy**. KeRemotePlay takes the key from the clipboard by itself.
+4. The connection code is ready and **already on the clipboard**. Paste it to your friend.
 
-Sonraki açılışlarda kurulum adımları atlanır, ama kod her seferinde yenidir.
+Later starts skip the setup steps, but the code is new every time.
 
-**Arkadaşın:** KeRemotePlay'i açar, **Client**'a basar, kodu yapıştırır (kod panodaysa kendiliğinden
-gelir) → **Bağlan**. Moonlight ve Tailscale gerekiyorsa kurulur (Windows bir kez izin sorar), host'un
-ağına girilir ve host'a izin sorulur. Sonra **▶ Oyna**. Tailscale hesabı açması gerekmez.
+**Your friend:** opens KeRemotePlay, presses **Client**, pastes the code (if it is on the clipboard
+it appears by itself) → **Connect**. Moonlight and Tailscale are installed if needed (Windows asks
+once), the app joins the host's network and asks the host for permission. Then **▶ Play**. Your
+friend does not need a Tailscale account.
 
-Host'ta soru 60 saniye açık kalır; pencere öne çıkar, görev çubuğunda yanıp söner ve ses çalar.
-**Hayır** denirse aynı bilgisayar 30 saniye yeniden soramaz.
+On the host the question stays open for 60 seconds; the window comes to the front, flashes in the
+taskbar and plays a sound. After **No**, the same PC cannot ask again for 30 seconds.
 
-### Oturumu bitirmek
+### Ending a session
 
-Host **Ctrl+F4**'e ya da **Oturumu bitir**'e basınca yayın hemen kapanır, eşleşme silinir ve kod
-geçersiz olur; arkadaşın ancak yeni kodla ve yeniden izinle bağlanabilir. Ctrl+F4 sadece yayın
-sırasında ayrılır, başka zaman programlarda normal çalışır. KeRemotePlay'i kapatmak ya da
-**Başa dön** de oturumu bitirir. Arkadaşın Moonlight'ı kapatınca oturum kendiliğinden biter.
+When the host presses **Ctrl+F4** or **End session**, the stream closes at once, the pairing is
+removed and the code stops working; your friend can only connect again with a new code and a new
+permission. Ctrl+F4 is only taken while a stream runs; at other times it works normally in other
+programs. Closing KeRemotePlay or pressing **Back to start** also ends the session. When your friend
+closes Moonlight, the session ends by itself.
 
-Host'ta KeRemotePlay oyun boyunca açık kalmalı.
+KeRemotePlay must stay open on the host while you play.
 
-### Başa dönünce kapananlar
+### What closes when you go back to the start
 
-Servisler sadece Host ya da Client ekranındayken açık kalır. **Başa dön**'e basınca ya da program
-kapanınca:
+Services only run while the Host or Client screen is open. When you press **Back to start** or close
+the app:
 
-- **Host:** oturum biter, eşleştirme portu (47900) kapanır, Sunshine durur.
-- **Client:** Moonlight yayını kapanır.
-- **İkisinde de Tailscale:** Önceden başka bir ağdaysan o ağa döner; değilse bağlantısı kesilir.
-  Tailscale'in kendisi kurulu kalır, sadece bağlantısı kapanır.
+- **Host:** the session ends, the pairing port (47900) closes, Sunshine stops.
+- **Client:** the Moonlight stream closes.
+- **Tailscale on both:** if you were on another Tailscale network before, it switches back to it;
+  otherwise it disconnects. Tailscale itself stays installed; only its connection is closed.
 
-Sunshine artık Windows'la birlikte açılmaz. Bunun için ilk Host'ta Windows bir kez izin sorar;
-sonraki açılıp kapanmalarda sormaz.
+Sunshine no longer starts with Windows. For this Windows asks for permission once on the first Host
+start; after that starting and stopping it asks nothing.
 
-**Dikkat:** Host'a basıldığında bu bilgisayardaki Sunshine'ın **bütün** eşleşmeleri silinir;
-Moonlight'la elle eşleştirdiğin başka cihazlar varsa onlar da.
+**Note:** pressing Host removes **all** pairings in this PC's Sunshine, including other devices you
+paired with Moonlight by hand.
 
-Windows Güvenlik Duvarı ayrıca "erişime izin verilsin mi?" diye sorarsa **İzin ver** de.
+If Windows Firewall also asks "allow access?", press **Allow**.
 
-### Yayın ayarları: çözünürlük, FPS, bitrate
+### Stream settings: resolution, FPS, bitrate
 
-Arkadaşın ekranında **Ayarlar** altında. Üçü de ayrı ayrı ya **Otomatik** bırakılır ya da elle seçilir:
+On your friend's screen under **Settings**. Each of the three can be left on **Auto** or set by hand:
 
-| Ayar | Seçenekler |
+| Setting | Options |
 |---|---|
-| Çözünürlük | Otomatik, Ekranımla aynı, 720p, 900p, 1080p, 1440p, 4K |
-| FPS | Otomatik, 30, 60, 90, 120, 144 |
-| Bitrate | Boş = Otomatik, ya da 0,5–500 Mbps arası bir sayı |
+| Resolution | Auto, Same as my screen, 720p, 900p, 1080p, 1440p, 4K |
+| FPS | Auto, 30, 60, 90, 120, 144 |
+| Bitrate | Empty = Auto, or a number between 0.5 and 500 Mbps |
 
-Elle seçtiğin her şey olduğu gibi kullanılır. Sadece Otomatik bıraktıkların hatta göre seçilir:
+Whatever you pick by hand is used as it is. Only the parts left on Auto follow the line:
 
-- Otomatik kısım varsa Oyna'ya basınca host'tan bu bilgisayara 5 saniye veri çekilip gerçek
-  hız ölçülür (ölçüm 10 dakika geçerli). Her şey elle seçiliyse ölçüm yapılmaz.
-- **Çözünürlük Otomatik:** önce ekranının kendi çözünürlüğü, hat kaldırmazsa 1440p → 1080p → 900p → 720p.
-- **FPS Otomatik:** 120 Hz ve üstü ekranda önce 120, olmazsa 60.
-- **Bitrate Otomatik:** ölçülen hızın %75'i, ama Moonlight'ın o çözünürlük/fps için varsayılanını geçmez.
-- Elle seçtiğin değer hattın üstündeyse uygulama engellemez, sadece "takılma olabilir" diye uyarır.
+- If anything is on Auto, pressing Play pulls data from the host for 5 seconds to measure the real
+  speed (a result is kept for 10 minutes). If everything is set by hand, nothing is measured.
+- **Resolution Auto:** your screen's own resolution first, then 1440p → 1080p → 900p → 720p if the
+  line cannot carry it.
+- **FPS Auto:** 120 first on screens of 120 Hz and above, otherwise 60.
+- **Bitrate Auto:** 75% of the measured speed, but no more than Moonlight's default for that
+  resolution/fps.
+- If a value you picked is more than the line can carry, the app does not stop you; it only warns
+  that it may stutter.
 
-Ekranın altında hangi ayarla açılacağı yazar. Otomatik seçilen kısımlar **oto** etiketiyle gösterilir.
-Örnek (her şey Otomatik): 14 Mbps → 1080p · 60 fps · 10,5 Mbps. 6 Mbps → 720p · 60 fps · 4,5 Mbps.
+The bottom of the screen shows which settings will be used. Example (everything on Auto):
+14 Mbps → 1080p · 60 fps · 10.5 Mbps. 6 Mbps → 720p · 60 fps · 4.5 Mbps.
 
-## Ses, mikrofon ve Discord
+## Audio, microphones and Discord
 
-- **Mikrofonlar yayına hiç girmez.** Sunshine sadece host'un hoparlöre çaldığı sesi kaydeder
-  (Windows "loopback"), mikrofon kaydetmez. Moonlight'ın PC sürümü de mikrofon göndermez.
-  Sesli konuşma tamamen Discord'da kalır. Bunu iki programın kaynak kodundan kontrol ettim.
-- **Asıl risk, host'taki Discord'un çaldığı sesin yayına karışması.** Discord host'ta "Varsayılan"
-  çıkışa çalıyorsa arkadaşın Discord'daki herkesi, kendi sesi dahil, yayında gecikmeli yankı
-  olarak duyar. Bunu önlemek için:
-  1. KeRemotePlay yayını her zaman "ses host'ta çalmasın" modunda açar. Bu modda Sunshine,
-     yayın süresince Windows'un varsayılan çıkışını sanal bir hoparlöre (Steam Streaming Speakers) alır.
-  2. Host'ta Discord → Kullanıcı Ayarları → **Ses ve Görüntü** → **Çıkış Cihazı**'nı
-     "Varsayılan" yerine kulaklığına ya da hoparlörüne sabitle. Böylece Discord yayına girmez,
-     sen de Discord'u duymaya devam edersin.
-  3. Sanal hoparlör için host'ta **Steam kurulu olmalı** (açık olması gerekmez; sürücüyü
-     Sunshine kendisi kurar) ya da VB-Cable kurulmalı. Eksikse host ekranında uyarı çıkar.
-- **Couch co-op (FIFA vb.): "Oyunun sesini ben de duyayım"** (varsayılan olarak açık). Yayın
-  sırasında oyunun sesi sanal hoparlöre gittiği için normalde host'taki oyuncu oyunu duymaz.
-  KeRemotePlay sanal hoparlördeki sesi alıp senin kulaklığına da çalar. Discord bu yoldan
-  geçmediği için arkadaşına gitmez. Ek gecikme birkaç on milisaniye. Hangi cihaza çalınacağını
-  host ekranındaki **Ayarlar**'dan seçebilirsin; "Otomatik" yayından önceki varsayılan cihazı kullanır.
-  Bunun için host'ta KeRemotePlay penceresi açık kalmalı.
+- **Microphones never go into the stream.** Sunshine only records what the host plays to its
+  speakers (Windows "loopback"); it does not record microphones. The PC version of Moonlight does
+  not send a microphone either. Voice chat stays entirely in Discord.
+- **The real risk is the host's Discord audio getting into the stream.** If Discord on the host
+  plays to the "Default" output, your friend hears everyone on Discord, themselves included, as a
+  delayed echo in the stream. To avoid it:
+  1. KeRemotePlay always opens the stream in "do not play audio on the host" mode. In this mode
+     Sunshine moves Windows' default output to a virtual speaker (Steam Streaming Speakers) for the
+     length of the stream.
+  2. On the host, in Discord → User Settings → **Voice & Video** → **Output Device**, pick your
+     headphones or speakers instead of "Default". Then Discord stays out of the stream and you still
+     hear Discord.
+  3. The virtual speaker needs **Steam installed** on the host (it does not need to be running;
+     Sunshine installs the driver itself) or VB-Cable. If it is missing, the host screen warns you.
+- **Couch co-op: "Let me hear the game too"** (on by default). During the stream the game audio
+  goes to the virtual speaker, so normally the player at the host would not hear the game.
+  KeRemotePlay takes the audio from the virtual speaker and also plays it in your headphones.
+  Discord does not take this path, so it does not reach your friend. The added delay is a few tens
+  of milliseconds. Pick the device under **Settings** on the host screen; "Auto" uses the default
+  device from before the stream. The KeRemotePlay window must stay open on the host for this.
 
 ```
- Oyun ──▶ (varsayılan çıkış = sanal hoparlör) ──┬──▶ Sunshine ──▶ arkadaşın
-                                                └──▶ KeRemotePlay ──▶ senin kulaklığın
- Discord ──▶ senin kulaklığın (sabit)                (yayına girmez)
+ Game ──▶ (default output = virtual speaker) ──┬──▶ Sunshine ──▶ your friend
+                                               └──▶ KeRemotePlay ──▶ your headphones
+ Discord ──▶ your headphones (fixed)               (not in the stream)
 ```
 
-## Arkadaşının kolları: her kol çalışsın (Xbox, PlayStation, DInput/jenerik)
+## Your friend's controllers: any controller works (Xbox, PlayStation, DInput/generic)
 
-Bir kolun oyuna gitmesi iki adımda oluyor:
+A controller reaches the game in two steps:
 
-1. **Arkadaşının bilgisayarında Moonlight kolu tanımalı.** Moonlight kolları SDL ile okur ve sadece
-   düzenini (hangi tuş A, hangi eksen sol analog) bildiği kolları gönderir. Xbox, PS4/PS5, Switch Pro
-   ve binlerce bilinen DInput kolu zaten tanınır. Tanınmayan jenerik bir kol **sessizce yok sayılır**.
-   - KeRemotePlay, Moonlight'ın kendi SDL2.dll dosyasını kullanarak kolları **Moonlight'ın gördüğü
-     gibi** listeler: "Moonlight kullanacak" ya da "Moonlight bu kolu tanımıyor".
-   - Tanınmayan kol için **Kolu tanıt**: ekran sırayla "Alttaki tuş (Xbox A · PS Çarpı)",
-     "Sol analoğu SAĞA it" gibi 21 adım sorar. Kolunda olmayan tuşu "atla" ile geçersin. En az A, B ve
-     sol analog gerekir. Bittiğinde **Kaydet**.
-   - Kaydedilen tanım, Oyna'ya basınca Moonlight'a verilir (Moonlight kendi ayarlarına da kaydeder).
-     **Test et** ile tuşların doğru karşılığa gittiğini canlı görebilirsin.
-   - Yayın sürerken KeRemotePlay kollara dokunmaz; kollar tamamen Moonlight'ta olur.
-2. **Host'ta kol Xbox kolu olarak oluşur.** KeRemotePlay Sunshine'ı buna göre ayarlar: arkadaşın hangi
-   kolu kullanırsa kullansın host'ta XInput (Xbox 360) kolu belirir ve her oyun onu tanır. Tuşlar Xbox
-   karşılıklarına gelir (Çarpı = A, Daire = B, Kare = X, Üçgen = Y); touchpad ve hareket sensörü kullanılmaz.
+1. **Moonlight on your friend's PC must recognize the controller.** Moonlight reads controllers
+   through SDL and only sends the ones whose layout (which button is A, which axis is the left
+   stick) it knows. Xbox, PS4/PS5, Switch Pro and thousands of known DInput pads are already
+   recognized. An unknown generic pad is **silently ignored**.
+   - KeRemotePlay uses Moonlight's own SDL2.dll to list controllers **the way Moonlight sees
+     them**: "Moonlight will use it" or "Moonlight does not recognize this controller".
+   - For an unknown pad, **Set it up**: the screen asks for 21 steps such as "Bottom button (Xbox A
+     · PS Cross)" and "Push the left stick RIGHT". Skip buttons your pad does not have. At least A, B
+     and the left stick are needed. When done, **Save**.
+   - The saved layout is given to Moonlight when you press Play (Moonlight also saves it). **Test**
+     shows live that each button maps correctly.
+   - While a stream runs KeRemotePlay does not touch the controllers; Moonlight has them.
+2. **On the host the controller appears as an Xbox controller.** KeRemotePlay sets Sunshine up so
+   that whatever controller your friend uses, an XInput (Xbox 360) controller appears on the host
+   and every game understands it. Buttons map to their Xbox counterparts (Cross = A, Circle = B,
+   Square = X, Triangle = Y); the touchpad and motion sensors are not used.
 
-Notlar: PS3 kolu Windows'ta ek sürücü (ör. DsHidMini) ister; sürücü kurulunca listede görünür.
-Kol veritabanı: [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) (zlib lisansı).
+Notes: a PS3 controller needs an extra driver on Windows (e.g. DsHidMini); once installed it shows
+up in the list. Controller database: [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB) (zlib license).
 
-## Couch co-op ipuçları
+## Couch co-op tips
 
-- **Görüntü:** Sunshine varsayılan ayarda senin monitörünün çözünürlüğüne dokunmaz, ekranını
-  olduğu gibi yayınlar. Arkadaşın tarafındaki Otomatik çözünürlük de host ekranından yükseğe
-  çıkmaz; host 1080p ise 1440p istemek sadece bitrate harcar.
-- **Oyuncu sırası:** Windows yeni bağlanan kola en küçük boş numarayı verir. Arkadaşın 1. oyuncu
-  olsun istiyorsan önce o bağlansın, sonra sen kolunu aç. Çoğu spor oyununda (FIFA/EA FC gibi) takım
-  seçme ekranında her kol tarafını ayrıca seçebilir.
-- Arkadaşının kolu, Moonlight yayını başlamadan önce bilgisayarına bağlı olsun.
-- **Oyunu kim açar:** Sen açarsın. Arkadaşın "Desktop" ile bağlanır ve ekranını görür.
-- **Gecikme:** Arkadaşın tarafında ~30–60 ms ek gecikme olur (ağ + kodlama). FIFA gibi oyunlarda
-  genelde rahat oynanır. Rekabetçi online maçlarda fark edilebilir.
+- **Picture:** by default Sunshine does not touch your monitor's resolution and streams your
+  screen as it is. Auto resolution on your friend's side never goes above the host's screen; if
+  the host is 1080p, asking for 1440p only wastes bitrate.
+- **Player order:** Windows gives a newly connected controller the lowest free number. If you want
+  your friend to be player 1, let them connect first, then turn on your controller. In most sports
+  games (FIFA/EA FC) each controller can also pick a side on the team select screen.
+- Your friend's controller should be connected to their PC before the Moonlight stream starts.
+- **Who starts the game:** you do. Your friend connects with "Desktop" and sees your screen.
+- **Latency:** your friend gets about 30–60 ms of extra latency (network + encoding). Games like
+  FIFA usually play fine. In competitive online matches it can be noticeable.
 
-## Akıcılık: ekrandaki işaretler ne anlama geliyor
+## Smoothness: what the signs on screen mean
 
-| İşaret | Anlamı | Ne yapmalı |
+| Sign | Meaning | What to do |
 |---|---|---|
-| **Doğrudan bağlantı** | İki PC arasında aracı yok | En iyi durum bu |
-| **Relay üzerinden (fra vb.)** | Trafik Tailscale'in yurtdışındaki sunucusundan geçiyor | Birkaç saniye bekleyip **Yenile**'ye bas, çoğu zaman doğrudana geçer. Kalıcıysa modem/CGNAT engelliyordur (aşağıya bak) |
-| **Host: Wi-Fi** | Host kablosuz bağlı | Takılmaların 1 numaralı sebebi, kablo tak |
-| **Ping** | 40 ms altı iyi, 80 ms üstü hissedilir | — |
-| **Hat X Mbps** | Host'tan sana gerçekten gelen hız | 8 Mbps altıysa sebep neredeyse her zaman host'un upload'udur; Otomatik ayar buna göre düşürür |
+| **Direct connection** | No middleman between the two PCs | This is the best case |
+| **Via relay (fra etc.)** | Traffic goes through a Tailscale server abroad | Wait a few seconds; it usually switches to direct. If it stays, the router/CGNAT blocks it (see below) |
+| **Host: Wi-Fi** | The host is on wireless | The number 1 cause of stutter; plug in a cable |
+| **Ping** | Under 40 ms is good, over 80 ms is noticeable | — |
+| **Line X Mbps** | The real speed from the host to you | Under 8 Mbps the reason is almost always the host's upload speed; Auto lowers the settings to match |
 
-**Relay kalıcıysa:** Tailscale'in *peer relay* özelliğiyle (ücretsiz planda var) Türkiye'de
-ucuz bir VPS'i ya da sabit IP'si olan bir PC'yi aracı yapabilirsin. Bu, KeRemotePlay'in
-sonraki sürümleri için yol haritasında.
+**If the relay stays:** with Tailscale's *peer relay* feature (available on the free plan) you can
+make a cheap VPS near you, or a PC with a fixed IP, the middleman. This is on the roadmap.
 
-## Arkadaş olmadan nasıl test edilir
+## Testing without a friend
 
-- **Host tarafı** tek başına denenebilir: davet kodunu görmek yeterli.
-- **Client için** ikinci bir Windows bilgisayar (örneğin bir laptop) lazım. Aynı evde olması sorun değil.
-- Aynı ev ağında bağlantı gerçekte olduğundan çok iyi görünür. Gerçekçi bir test için laptop'u
-  **telefonun mobil verisine (hotspot)** bağla. Mobil ağlar CGNAT arkasında olduğu için bu,
-  arkadaşının evinden bağlanmaya yakın bir durum yaratır. Dikkat: 10 Mbps'lik yayın saatte yaklaşık 4,5 GB veri harcar.
+- **The host side** can be tried alone: seeing the invite code is enough.
+- **For the client** you need a second Windows PC (a laptop, for example). Being in the same house
+  is fine.
+- On the same home network the connection looks much better than it really is. For a realistic
+  test, connect the laptop to your **phone's mobile data (hotspot)**. Mobile networks are behind
+  CGNAT, so this is close to your friend connecting from their home. Mind the data: a 10 Mbps stream
+  uses about 4.5 GB per hour.
 
-## Güvenlik ve bilinen sınırlar
+## Security and known limits
 
-Kullanmadan önce oku. KeRemotePlay arkadaşına bilgisayarının ekranını ve kontrolünü açar,
-yönetici izniyle sistem ayarlarına dokunur. Hepsi aşağıda.
+Read this before using it. KeRemotePlay opens your screen and control of your PC to your friend and
+changes system settings with admin rights. All of it is below.
 
-### Bağlantı kodu ağına giriş anahtarıdır
+### The connection code is a key to your network
 
-Kodun (`KRP1-…`) içinde Tailscale **auth key**'in var. Kodu eline geçiren herkes, anahtar
-geçerli olduğu sürece **Tailscale ağına katılabilir**:
+Your code (`KRP1-…`) contains your Tailscale **auth key**. Anyone who gets the code can **join your
+Tailscale network** for as long as the key is valid:
 
-- Her Host açılışında koddaki gizli anahtar değişir ve her bağlantı senin iznini ister. Yani eski
-  kodla kimse habersizce **oyuna** bağlanamaz.
-- Ama auth key aynı kalır (Reusable). Eski kodu bilen biri yine de **ağına** girebilir ve
-  varsayılan Tailscale ayarıyla ağındaki **diğer cihazlara** (NAS, öbür PC'ler, yazıcı) ulaşabilir.
-- Kodu sadece güvendiğin kişiye, özelden gönder. Herkese açık kanala yapıştırma.
+- The secret part of the code changes every time you start as Host, and every connection asks for
+  your permission. So nobody can connect to your **game** unnoticed with an old code.
+- But the auth key stays the same (Reusable). Someone with an old code can still join your
+  **network**, and with Tailscale's default settings reach **other devices** on it (NAS, other PCs,
+  printer).
+- Only send the code privately, to people you trust. Do not paste it into a public channel.
 
-Bunu önlemenin iki yolu var. Birini seçmen **şiddetle önerilir**:
+There are two ways to prevent this. Picking one is **strongly recommended**:
 
-1. **KeRemotePlay için ayrı bir Tailscale hesabı aç (en basiti).** Örneğin ayrı bir Google ya da
-   GitHub hesabıyla. O ağda oyun bilgisayarından başka bir şey olmaz. Kendi Tailscale ağın varsa
-   KeRemotePlay onu bozmaz: Host ekranından çıkınca önceki ağına geri döner.
-2. **Güvenli mod:** Kendi ağını kullanacaksan aşağıdaki ACL ile arkadaş cihazlarının sadece
-   oyun portlarına erişmesini sağla.
+1. **Make a separate Tailscale account for KeRemotePlay (simplest).** For example with a separate
+   Google or GitHub account. Then that network holds nothing but the gaming PC. If you have your
+   own Tailscale network, KeRemotePlay does not break it: when you leave the Host screen it switches
+   back to your previous network.
+2. **Safe mode:** if you use your own network, use the ACL below so friends' devices can only
+   reach the game ports.
 
-Kod yanlış ellere geçtiyse: Tailscale admin → **Settings → Keys**'ten anahtarı **Revoke** et,
-**Machines**'ten tanımadığın cihazları **Remove** et, sonra KeRemotePlay'de yeni anahtar gir.
+If the code got into the wrong hands: in the Tailscale admin, **Revoke** the key under
+**Settings → Keys**, **Remove** devices you do not know under **Machines**, then enter a new key in
+KeRemotePlay.
 
-### Arkadaşın ekranını görür, klavyeni ve fareni kullanabilir
+### Your friend sees your screen and can use your keyboard and mouse
 
-- Yayın **masaüstünün tamamını** gösterir: açık pencereler, bildirimler, Discord mesajları dahil.
-  Göstermek istemediğin şeyleri yayından önce kapat.
-- Arkadaşının kolu, klavyesi ve faresi senin bilgisayarına gider. Bu bilerek böyle: bazı oyunlar
-  klavye ve fare istiyor. Yani yayın sırasında senin hesabınla her şeyi yapabilir.
-- **Ctrl+F4** ya da **Oturumu bitir** yayını anında keser, eşleşmeyi siler, kodu geçersiz yapar.
+- The stream shows your **whole desktop**: open windows, notifications, Discord messages included.
+  Close anything you do not want to show before the stream.
+- Your friend's controller, keyboard and mouse go to your PC. This is on purpose: some games need
+  keyboard and mouse. It means that during the stream they can do anything with your account.
+- **Ctrl+F4** or **End session** cuts the stream at once, removes the pairing and makes the code
+  invalid.
 
-### Yönetici izniyle değiştirdikleri
+### What it changes with admin rights
 
-İlk Host ve Client kurulumunda Windows bir kez izin sorar. O izinle:
+On the first Host and Client setup Windows asks for permission once. With it:
 
-- winget ile **Sunshine, Tailscale, ViGEmBus** (host) ve **Moonlight, Tailscale** (client) kurulur.
-- **Sunshine ayarları** değişir (`sunshine.conf`: kol sürücüsü `vigembus`, kol tipi `x360`)
-  ve Sunshine web arayüzü için kullanıcı adı/şifre atanır.
-- **Sunshine servisi "elle başlat"** yapılır ve senin kullanıcına başlatma/durdurma izni verilir.
-  Sunshine artık **Windows'la birlikte açılmaz**, sadece Host ekranındayken çalışır. Sunshine'ı
-  başka amaçla hep açık kullanıyorsan bunu bil.
-- **Tailscale** host'ta "unattended" moda alınır (oturum kapalıyken de bağlı kalabilsin diye).
-- **Güvenlik Duvarı**'na eşleştirme servisi ve Sunshine portları için iki gelen trafik kuralı
-  eklenir. İkisi de **sadece Tailscale adreslerine** (100.64.0.0/10) açıktır; ev ağından ya da
-  internetten erişilemez.
+- winget installs **Sunshine, Tailscale, ViGEmBus** (host) and **Moonlight, Tailscale** (client).
+- **Sunshine settings** change (`sunshine.conf`: controller driver `vigembus`, controller type
+  `x360`) and a user name/password is set for Sunshine's web panel.
+- **Sunshine's service is set to "manual start"** and your user gets permission to start and stop
+  it. Sunshine **no longer starts with Windows**; it only runs while the Host screen is open. Keep
+  this in mind if you use Sunshine for other things and want it always on.
+- **Tailscale** on the host is set to "unattended" mode (so it can stay connected while you are
+  signed out).
+- Two inbound **Windows Firewall** rules are added, for the pairing service and for Sunshine's
+  ports. Both are open **only to Tailscale addresses** (100.64.0.0/10); they cannot be reached from
+  your home network or the internet.
 
-### Sunshine eşleşmelerin silinir
+### Your Sunshine pairings are removed
 
-Her Host açılışında ve her oturum sonunda Sunshine'daki **bütün** eşleşmeler silinir. Böylece
-eşleşmiş bir Moonlight, senin iznin olmadan tekrar bağlanamaz. Ama bunun yan etkisi var:
-Moonlight'la elle eşleştirdiğin TV, tablet gibi cihazların varsa onları her seferinde yeniden
-eşleştirmen gerekir.
+Every Host start and every session end removes **all** pairings in Sunshine. This way a paired
+Moonlight cannot connect again without your permission. The side effect: if you paired devices
+like a TV or tablet with Moonlight by hand, you have to pair them again every time.
 
-### Ağda açık olanlar
+### What is open on the network
 
-- **47900/TCP (eşleştirme servisi):** Sadece Host ekranındayken açık. Sadece Tailscale
-  adreslerinden ve koddaki gizli anahtarla cevap verir. Başa dönünce kapanır.
-- **Sunshine portları (47984–48010):** Sunshine açıkken. Güvenlik duvarı kuralı bunları sadece
-  Tailscale ağına açar. Tailscale ağının içinde kimin erişeceğini ise ACL belirler (Güvenli mod).
-- Program zorla kapatılırsa (Görev Yöneticisi, elektrik kesintisi) Sunshine ve Tailscale açık
-  kalabilir. KeRemotePlay bir sonraki açılışta kalmış Sunshine'ı kapatır.
+- **47900/TCP (pairing service):** open only while the Host screen is open. It only answers
+  Tailscale addresses that know the secret in the code. It closes when you go back to the start.
+- **Sunshine ports (47984–48010):** while Sunshine runs. The firewall rule opens them to the
+  Tailscale network only. Who inside the Tailscale network can reach them is up to the ACL (Safe
+  mode).
+- If the app is killed (Task Manager, power cut), Sunshine and Tailscale may stay on. KeRemotePlay
+  stops a leftover Sunshine the next time it starts.
 
-### Diğer
+### Other
 
-- **Arkadaşların cihazları senin Tailscale hesabında görünür.** Admin panelinden görüp silebilirsin.
-- **Auth key 90 gün sonra dolar.** Zaten bağlanmış arkadaşlar etkilenmez. Yeni arkadaş için
-  yeni anahtar üretip uygulamada **Değiştir** ile güncelle.
-- **Cihaz anahtarı 180 gün sonra dolabilir.** O zaman arkadaşın yeniden bağlanmak zorunda kalır.
-  Bunun olmaması için Tailscale admin panelinde o cihaz için *Disable key expiry* seç
-  (Güvenli mod'da bu kendiliğinden olur).
-- Ayarlar `%APPDATA%\KeRemotePlay\config.json` dosyasında **düz metin** olarak durur
-  (Sunshine şifresi ve auth key dahil). Bu dosyayı kimseyle paylaşma; kayıt dosyası
-  (`krp.log`) gönderirken içine bakmak da iyi olur.
-- **Exe imzasız.** Windows SmartScreen "tanınmayan uygulama" diyebilir. Exe'yi sadece bu reponun
-  **Releases** sayfasından indir ya da kaynaktan kendin derle (aşağıda *Geliştirme*).
-- Ücretsiz Tailscale planı ticari olmayan kullanım içindir.
-- Arayüz Türkçe ve program sadece Windows için. MIT lisanslı, **hiçbir garanti verilmez**
-  (bkz. [LICENSE](LICENSE)).
+- **Your friends' devices show up in your Tailscale account.** You can see and remove them in the
+  admin page.
+- **An auth key expires after 90 days.** Friends already connected are not affected. For a new
+  friend, make a new key and update it in the app with **Change the invite key**.
+- **A device key may expire after 180 days.** Your friend then has to connect again. To avoid it,
+  pick *Disable key expiry* for that device in the Tailscale admin page (Safe mode does this by
+  itself).
+- Settings are stored in **plain text** in `%APPDATA%\KeRemotePlay\config.json` (Sunshine password
+  and auth key included). Do not share this file; look inside the log (`krp.log`) before sending it
+  to anyone.
+- **The exe is not signed.** Windows SmartScreen may say "unrecognized app". Only download the exe
+  from this repository's **Releases** page, or build it yourself from source (see *Development*).
+- Tailscale's free plan is for non-commercial use.
+- Windows only. MIT licensed, **with no warranty of any kind** (see [LICENSE](LICENSE)).
 
-### Güvenli mod (arkadaşlar sadece oyuna erişsin)
+### Safe mode (friends can only reach the game)
 
-Tailscale admin → **Access controls** sayfasında şunu ekle. `100.x.y.z` yerine host'un
-Tailscale adresini yaz:
+In the Tailscale admin → **Access controls** page, add the following. Put the host's Tailscale
+address in place of `100.x.y.z`:
 
 ```json
 {
@@ -283,45 +308,68 @@ Tailscale adresini yaz:
 }
 ```
 
-Sonra auth key üretirken **Tags → tag:krp-friend** seç. Bu anahtarla katılan cihazlar sadece
-host'un oyun portlarına erişir ve anahtar süreleri dolmaz.
+Then pick **Tags → tag:krp-friend** when you make the auth key. Devices that join with this key can
+only reach the host's game ports, and their keys do not expire.
 
-## Sorun giderme
+## Third-party software
 
-- **"winget bulunamadı"**: Microsoft Store'dan *Uygulama Yükleyici*'yi (App Installer)
-  güncelle ya da açılan sayfadan programı elle kur. Uygulama kurulumu kendisi algılar.
-- **"Host'taki KeRemotePlay'e ulaşılamadı"**: Host'ta uygulama açık olmalı.
-- **Eşleştirme zaman aşımı**: Moonlight penceresi hata gösterdiyse kapat ve tekrar **▶ Oyna**'ya bas.
-- **0.8.x'ten geçenler:** Eski kol sıralama görevi kuruluysa host ekranında "Kaldır" çıkar; bir kez
-  izin ister, kapalı kalmış kol varsa onu da açar.
-- Kayıt dosyası: `%APPDATA%\KeRemotePlay\krp.log`
+KeRemotePlay does not bundle any of these programs. Each is installed by winget from its own
+official source and comes with its own license. KeRemotePlay only calls them from the command line
+or through their own web APIs.
 
-## Geliştirme
+| Program | Used for | License / note |
+|---|---|---|
+| [Sunshine](https://github.com/LizardByte/Sunshine) | Streaming on the host | GPL-3.0 |
+| [Moonlight](https://moonlight-stream.org/) | Opening the stream on the client | GPL-3.0. For controller detection, Moonlight's own SDL library is loaded (zlib). |
+| [Tailscale](https://tailscale.com/) | Private network between the two PCs | The client core is open source (BSD-3). The service is under Tailscale's terms; the free plan is for personal, non-commercial use. Plan limits can change over time. |
+| [ViGEmBus](https://github.com/nefarius/ViGEmBus) | Your friend's controller appears as an Xbox controller on the host | BSD-3. The project is **retired** and no longer updated. It works for now; if a future Windows update breaks it, a fix may not come. |
 
-Gereken: Go 1.24+. Windows'ta `build.bat` testleri çalıştırıp `dist\KeRemotePlay.exe`'yi üretir.
-Linux/Mac'te de derlenip test edilebilir (`go test ./...`); orada araçlar PATH'teki
-`tailscale`, `moonlight`, `sunshine` adlarıyla aranır, böylece sahte araçlarla deneme yapılabilir.
+Included in this repository: [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameControllerDB)
+(zlib, license in `assets/`). Go libraries: go-webview2, go-wca, go-ole (MIT) and golang.org/x/sys
+(BSD-3).
 
-| Dosya | Görevi |
+KeRemotePlay is not affiliated with any of these projects; their names are only used to say what
+is used.
+
+## Troubleshooting
+
+- **"winget not found"**: update *App Installer* from the Microsoft Store, or install the program by
+  hand from the page that opens. The app notices the installation by itself.
+- **"Could not reach KeRemotePlay on the host"**: the app must be open on the host.
+- **Pairing timed out**: if the Moonlight window shows an error, close it and press **▶ Play**
+  again.
+- **Coming from 0.8.x:** if the old controller order task is installed, the host screen shows
+  "Remove"; it asks for permission once and also re-enables a controller left disabled.
+- Log file: `%APPDATA%\KeRemotePlay\krp.log`
+
+## Development
+
+Needs Go 1.24+. On Windows, `build.bat` runs the tests and builds `dist\KeRemotePlay.exe`. It also
+builds and tests on Linux/Mac (`go test ./...`); there the tools are looked up on PATH as
+`tailscale`, `moonlight` and `sunshine`, so fake tools can stand in for them.
+
+| File | Purpose |
 |---|---|
-| `main.go`, `server.go`, `web/index.html` | Uygulama penceresi (WebView2) ve arayüz |
-| `actions.go` | Host/Client durumu, bağlanma ve eşleştirme akışı |
-| `agent.go` | Host'taki eşleştirme servisi (yalnız Tailscale adreslerinden, gizli anahtarla) |
-| `sunshine.go` | Sunshine API: şifre kontrolü, PIN onayı (eski ve 2026.10+ API) |
-| `tailscale.go` | Durum, ping (doğrudan/relay), giriş |
+| `main.go`, `server.go`, `web/index.html` | App window (WebView2) and interface |
+| `actions.go` | Host/Client state, connecting and pairing flow |
+| `agent.go` | Pairing service on the host (Tailscale addresses only, with the secret) |
+| `sunshine.go` | Sunshine API: password check, PIN approval (old and 2026.10+ API) |
+| `tailscale.go` | Status, ping (direct/relay), login |
 | `moonlight.go` | Moonlight CLI: pair / list / stream |
-| `setup.go` | winget kurulumları, yönetici gerektiren işler (tek UAC) |
-| `invite.go` | Davet kodu |
-| `prepare.go` | Tek düğmeli akışlar: host hazırlığı (kurulum → giriş → anahtar → kod), client kurulumu |
-| `clip_windows.go` | Pano: davet kodunu/anahtarı panodan alma, kodu panoya koyma |
-| `legacy.go`, `cfgmgr_windows.go` | 0.8.x'in kaldırılan kol sıralama görevinin temizliği |
-| `audio.go`, `audio_windows.go` | Couch co-op ses aktarımı (sanal hoparlör → host kulaklığı, WASAPI) |
-| `clientpads.go`, `clientpads_windows.go` | Arkadaşın kolları: Moonlight'ın SDL2.dll'iyle tanıma, "Kolu tanıt" sihirbazı, test |
-| `speed.go` | Hız ölçümü ve otomatik kalite planı (Moonlight'ın bitrate formülüyle uyumlu) |
+| `setup.go` | winget installs, admin-only work (one UAC prompt) |
+| `invite.go` | Invite code |
+| `prepare.go` | One-button flows: host setup (install → login → key → code), client install |
+| `clip_windows.go` | Clipboard: taking the invite code/key from it, putting the code on it |
+| `legacy.go`, `cfgmgr_windows.go` | Cleanup of 0.8.x's removed controller order task |
+| `audio.go`, `audio_windows.go` | Couch co-op audio relay (virtual speaker → host headphones, WASAPI) |
+| `clientpads.go`, `clientpads_windows.go` | Friend's controllers: detection with Moonlight's SDL2.dll, setup wizard, test |
+| `speed.go` | Speed test and automatic quality plan (matches Moonlight's bitrate formula) |
+| `i18n.go`, `lang_*.go` | Turkish/English. Every text is written in place as `L("Türkçe", "English")`. |
 
-### Yol haritası
-1. ~~MVP: Windows host + client, otomatik eşleştirme, bağlantı sağlığı~~
-2. ~~Hattı ölçüp çözünürlük/fps/bitrate seçimi~~ (0.2.0), ~~elle ayar + Discord/ses düzeni~~ (0.3.0)
-3. ~~Couch co-op: oyun sesi host'ta da çalsın ama Discord yayına girmesin, kol sürücüsü~~ (0.4.0)
-4. Client çözünürlüğüne göre sanal ekran
-5. Tek exe: Tailscale'i uygulamanın içine gömmek (tsnet), ayrıca kurulum yok
+### Roadmap
+1. ~~MVP: Windows host + client, automatic pairing, connection health~~
+2. ~~Measure the line and pick resolution/fps/bitrate~~ (0.2.0), ~~manual settings + Discord/audio setup~~ (0.3.0)
+3. ~~Couch co-op: game audio on the host too while Discord stays out of the stream, controller driver~~ (0.4.0)
+4. ~~English interface~~ (0.9.7)
+5. Virtual display matching the client's resolution
+6. Single exe: Tailscale built into the app (tsnet), no separate install

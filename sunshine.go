@@ -174,11 +174,11 @@ func sunSubmitPin(user, pass, clientIP, pin, name string, timeout time.Duration)
 		if !legacy {
 			resp, b, err := sunRequest("GET", "/api/pin", user, pass, nil)
 			if err != nil {
-				return fmt.Errorf("Sunshine'a ulaşılamadı: %v", err)
+				return fmt.Errorf(msgSunUnreachable(), err)
 			}
 			switch {
 			case resp.StatusCode == 401 || resp.StatusCode == 403:
-				return errors.New("Sunshine şifresi geçersiz (host uygulamasında Sunshine bağlantısını yeniden ayarla)")
+				return errSunPass
 			case resp.StatusCode == 200 && bytes.Contains(b, []byte(`"pairings"`)):
 				var lst struct {
 					Pairings []struct {
@@ -188,7 +188,7 @@ func sunSubmitPin(user, pass, clientIP, pin, name string, timeout time.Duration)
 					} `json:"pairings"`
 				}
 				if err := json.Unmarshal(b, &lst); err != nil {
-					return fmt.Errorf("Sunshine yanıtı okunamadı: %v", err)
+					return fmt.Errorf(L("Sunshine yanıtı okunamadı: %v", "could not read Sunshine's reply: %v"), err)
 				}
 				// Moonlight may reach Sunshine from another address than the agent
 				// saw (e.g. Tailscale IPv6); a lone request is taken after a while.
@@ -204,30 +204,36 @@ func sunSubmitPin(user, pass, clientIP, pin, name string, timeout time.Duration)
 					if ok, _ := jsonStatusTrue(pb); ok {
 						return nil
 					}
-					return fmt.Errorf("Sunshine PIN'i kabul etmedi: %s", strings.TrimSpace(string(pb)))
+					return fmt.Errorf(L("Sunshine PIN'i kabul etmedi: %s", "Sunshine did not accept the PIN: %s"), strings.TrimSpace(string(pb)))
 				}
 			default:
 				legacy = true
-				logf("Sunshine eski eşleştirme API'si kullanılıyor")
+				logf("%s", L("Sunshine eski eşleştirme API'si kullanılıyor", "Sunshine uses the old pairing API"))
 				continue
 			}
 		} else {
 			resp, pb, err := sunRequest("POST", "/api/pin", user, pass, map[string]string{"pin": pin, "name": name})
 			if err != nil {
-				return fmt.Errorf("Sunshine'a ulaşılamadı: %v", err)
+				return fmt.Errorf(msgSunUnreachable(), err)
 			}
 			if resp.StatusCode == 401 || resp.StatusCode == 403 {
-				return errors.New("Sunshine şifresi geçersiz")
+				return errSunPass
 			}
 			if ok, _ := jsonStatusTrue(pb); ok {
 				return nil
 			}
 		}
 		if time.Now().After(deadline) {
-			return errors.New("Moonlight'tan eşleştirme isteği gelmedi (zaman aşımı)")
+			return newErr("Moonlight'tan eşleştirme isteği gelmedi (zaman aşımı)", "no pairing request came from Moonlight (timed out)")
 		}
 		time.Sleep(1500 * time.Millisecond)
 	}
+}
+
+var errSunPass = newErr("Sunshine şifresi geçersiz (host uygulamasında Sunshine bağlantısını yeniden ayarla)", "Sunshine's password is wrong (set the Sunshine connection up again in the host app)")
+
+func msgSunUnreachable() string {
+	return L("Sunshine'a ulaşılamadı: %v", "could not reach Sunshine: %v")
 }
 
 // sunInfoURL may be overridden in tests.
@@ -275,7 +281,7 @@ func sunPost(path, user, pass string) error {
 	return nil
 }
 
-var errConfUnparsable = errors.New("Sunshine ayar dosyası beklenmedik biçimde")
+var errConfUnparsable = newErr("Sunshine ayar dosyası beklenmedik biçimde", "Sunshine's config file has an unexpected format")
 
 // sunSetConf changes Sunshine settings through its own web API (Sunshine runs as
 // SYSTEM, so no UAC prompt), then restarts it. Sunshine's POST /api/config replaces
@@ -283,7 +289,7 @@ var errConfUnparsable = errors.New("Sunshine ayar dosyası beklenmedik biçimde"
 func sunSetConf(j *Job, user, pass string, set []confPair) error {
 	path := sunshineConfFile()
 	if path == "" {
-		return errors.New("Sunshine ayar dosyası bulunamadı")
+		return errors.New(L("Sunshine ayar dosyası bulunamadı", "Sunshine's config file not found"))
 	}
 	b, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -300,12 +306,12 @@ func sunSetConf(j *Job, user, pass string, set []confPair) error {
 	}
 	resp, rb, err := sunRequest("POST", "/api/config", user, pass, body)
 	if err != nil {
-		return fmt.Errorf("Sunshine'a ulaşılamadı: %v", err)
+		return fmt.Errorf(msgSunUnreachable(), err)
 	}
 	if ok, _ := jsonStatusTrue(rb); resp.StatusCode != 200 || !ok {
-		return fmt.Errorf("Sunshine ayarı kaydetmedi: %s %s", resp.Status, strings.TrimSpace(string(rb)))
+		return fmt.Errorf(L("Sunshine ayarı kaydetmedi: %s %s", "Sunshine did not save the setting: %s %s"), resp.Status, strings.TrimSpace(string(rb)))
 	}
-	j.Logf("Sunshine ayarı kaydedildi, yeniden başlatılıyor...")
+	j.Logf("%s", L("Sunshine ayarı kaydedildi, yeniden başlatılıyor...", "Sunshine saved the setting, restarting..."))
 	_, _, _ = sunRequest("POST", "/api/restart", user, pass, map[string]string{}) // may not answer
 	time.Sleep(3 * time.Second)
 	for i := 0; i < 30; i++ {
@@ -314,7 +320,7 @@ func sunSetConf(j *Job, user, pass string, set []confPair) error {
 		}
 		time.Sleep(time.Second)
 	}
-	return errors.New("Sunshine yeniden başladıktan sonra yanıt vermedi")
+	return errors.New(L("Sunshine yeniden başladıktan sonra yanıt vermedi", "Sunshine did not answer after restarting"))
 }
 
 func sunGamepadMode() string {

@@ -7,7 +7,6 @@ package main
 // panel of 0.8.x may have left switched off.
 
 import (
-	"errors"
 	"fmt"
 	"syscall"
 	"time"
@@ -24,7 +23,7 @@ var (
 	cmReenumerate   = cfgmgr.NewProc("CM_Reenumerate_DevNode")
 	cmGetRegProp    = cfgmgr.NewProc("CM_Get_DevNode_Registry_PropertyW")
 	cmSetRegProp    = cfgmgr.NewProc("CM_Set_DevNode_Registry_PropertyW")
-	errNoSuchDevice = errors.New("cihaz yok")
+	errNoSuchDevice = newErr("cihaz yok", "no device")
 )
 
 const (
@@ -49,11 +48,11 @@ type crError uint32
 func (c crError) Error() string {
 	switch uint32(c) {
 	case crNotDisableable:
-		return "bu cihaz kapatılamıyor"
+		return L("bu cihaz kapatılamıyor", "this device cannot be disabled")
 	case crAccessDenied:
-		return "yönetici izni yok"
+		return L("yönetici izni yok", "no admin permission")
 	case crNoSuchDevnode:
-		return "cihaz bulunamadı"
+		return L("cihaz bulunamadı", "device not found")
 	}
 	return fmt.Sprintf("CONFIGRET 0x%02X", uint32(c))
 }
@@ -139,7 +138,7 @@ func devEnable(id string) error {
 		return err
 	}
 	if devClearPersistentDisable(dn) {
-		logf("aç: %s kalıcı kapalı işareti temizlendi", id)
+		logf(L("aç: %s kalıcı kapalı işareti temizlendi", "enable: cleared the disabled flag of %s"), id)
 	}
 	r, _, _ := cmEnable.Call(uintptr(dn), 0)
 	enErr := cr(r)
@@ -158,7 +157,7 @@ func devEnable(id string) error {
 		return nil
 	}
 	if _, prob, ok := devStatus(dn); ok {
-		return fmt.Errorf("başlamadı (sorun kodu %d)", prob)
+		return fmt.Errorf(L("başlamadı (sorun kodu %d)", "did not start (problem code %d)"), prob)
 	} else if enErr != nil {
 		return enErr
 	}

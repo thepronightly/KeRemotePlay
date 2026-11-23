@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -61,6 +62,7 @@ func startUI(addr string) (string, error) {
 		c := getConfig()
 		st := map[string]any{
 			"version": appVersion,
+			"lang":    lang(),
 			"mode":    c.Mode,
 			"job":     currentJob(),
 			"log":     logTail(60),
@@ -84,7 +86,7 @@ func startUI(addr string) (string, error) {
 	mux.HandleFunc("/api/action", api(func(w http.ResponseWriter, r *http.Request) {
 		var req actionReq
 		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&req); err != nil {
-			writeJSON(w, map[string]any{"ok": false, "error": "geçersiz istek"})
+			writeJSON(w, map[string]any{"ok": false, "error": L("geçersiz istek", "invalid request")})
 			return
 		}
 		if err := doAction(req); err != nil {
@@ -104,17 +106,22 @@ func doAction(req actionReq) error {
 		a = map[string]string{}
 	}
 	switch req.Action {
+	case "set-lang":
+		l := normLang(a["lang"])
+		setLang(l)
+		withConfig(func(c *Config) { c.Lang = l })
+		return nil
 	case "set-mode":
 		m := a["mode"]
 		if m != "host" && m != "client" && m != "" {
-			return fmt.Errorf("geçersiz mod")
+			return errors.New(L("geçersiz mod", "invalid mode"))
 		}
 		was := getConfig().Mode
 		if was != "" {
 			if m != "" {
-				return fmt.Errorf("önce başa dön")
+				return errors.New(L("önce başa dön", "go back to the start first"))
 			}
-			return runJob("Kapatılıyor", func(j *Job) error {
+			return runJob(L("Kapatılıyor", "Closing"), func(j *Job) error {
 				withConfig(func(c *Config) { c.Mode = "" })
 				leaveRole(j, was)
 				return nil
@@ -149,12 +156,12 @@ func doAction(req actionReq) error {
 		connAnswer(id, a["yes"] == "1")
 		return nil
 	case "end-session":
-		hostEndSession("Oturum bitirildi", true)
+		hostEndSession(L("Oturum bitirildi", "Session ended"), true)
 		return nil
 	case "prepare":
 		return startHostPrepare()
 	case "legacy-cleanup":
-		return runJob("Eski sürüm temizliği", func(j *Job) error {
+		return runJob(L("Eski sürüm temizliği", "Old version cleanup"), func(j *Job) error {
 			defer invalidateLegacy()
 			return elevate(j, elevReq{Action: "setup", Legacy: true})
 		})
@@ -166,7 +173,7 @@ func doAction(req actionReq) error {
 	case "copy-invite":
 		inv := hostView().Invite
 		if inv == "" {
-			return fmt.Errorf("davet kodu henüz hazır değil")
+			return errors.New(L("davet kodu henüz hazır değil", "the invite code is not ready yet"))
 		}
 		return clipWriteText(inv)
 	case "relay":
@@ -180,7 +187,7 @@ func doAction(req actionReq) error {
 		return nil
 	case "new-secret":
 		withConfig(func(c *Config) { c.Host.Secret = randHex(16) })
-		logf("Yeni davet kodu üretildi; eski kodlarla yeni eşleştirme yapılamaz")
+		logf("%s", L("Yeni davet kodu üretildi; eski kodlarla yeni eşleştirme yapılamaz", "New invite code made; old codes cannot pair any more"))
 		return nil
 	case "open-keys":
 		return openURL("https://login.tailscale.com/admin/settings/keys")
@@ -197,32 +204,32 @@ func doAction(req actionReq) error {
 			code = a["code"]
 		}
 		withConfig(func(c *Config) { c.Mode = "client" })
-		return runJob("Bağlanılıyor", func(j *Job) error { return clientJoin(j, code) })
+		return runJob(L("Bağlanılıyor", "Connecting"), func(j *Job) error { return clientJoin(j, code) })
 	case "pair":
-		return runJob("Eşleştirme", clientPair)
+		return runJob(L("Eşleştirme", "Pairing"), clientPair)
 	case "rejoin":
-		return runJob("Ağa yeniden bağlanma", clientRejoin)
+		return runJob(L("Ağa yeniden bağlanma", "Rejoining the network"), clientRejoin)
 	case "refresh-apps":
-		return runJob("Uygulama listesi", clientRefreshApps)
+		return runJob(L("Uygulama listesi", "App list"), clientRefreshApps)
 	case "health":
 		kickHealth()
 		return nil
 	case "speed":
-		return runJob("Hat ölçümü", func(j *Job) error { _, err := clientMeasure(j); return err })
+		return runJob(L("Hat ölçümü", "Line test"), func(j *Job) error { _, err := clientMeasure(j); return err })
 	case "stream-settings":
 		res := a["res"]
 		if !validRes(res) {
-			return fmt.Errorf("geçersiz çözünürlük")
+			return errors.New(L("geçersiz çözünürlük", "invalid resolution"))
 		}
 		fps, _ := strconv.Atoi(a["fps"])
 		if fps < 0 || fps > 240 {
-			return fmt.Errorf("geçersiz fps")
+			return errors.New(L("geçersiz fps", "invalid fps"))
 		}
 		kbps := 0
 		if v := strings.TrimSpace(strings.ReplaceAll(a["mbps"], ",", ".")); v != "" {
 			f, err := strconv.ParseFloat(v, 64)
 			if err != nil || f < 0.5 || f > 500 {
-				return fmt.Errorf("bitrate 0,5 ile 500 Mbps arasında olmalı")
+				return errors.New(L("bitrate 0,5 ile 500 Mbps arasında olmalı", "bitrate must be between 0.5 and 500 Mbps"))
 			}
 			kbps = int(f * 1000)
 		}
@@ -233,7 +240,7 @@ func doAction(req actionReq) error {
 		if app == "" {
 			app = "Desktop"
 		}
-		return runJob("Oyun başlatma", func(j *Job) error { return clientPlay(j, app) })
+		return runJob(L("Oyun başlatma", "Starting the game"), func(j *Job) error { return clientPlay(j, app) })
 	case "cpad-wizard", "cpad-test":
 		return clientPadCommand(strings.TrimPrefix(req.Action, "cpad-"), a["guid"])
 	case "cpad-skip", "cpad-cancel", "cpad-save", "cpad-test-stop", "cpad-press":
@@ -243,5 +250,5 @@ func doAction(req actionReq) error {
 		withConfig(func(c *Config) { delete(c.Client.Mappings, g) })
 		return nil
 	}
-	return fmt.Errorf("bilinmeyen işlem: %s", req.Action)
+	return fmt.Errorf(L("bilinmeyen işlem: %s", "unknown action: %s"), req.Action)
 }

@@ -6,8 +6,8 @@ package main
 func relayLoop() {
 	devs := []AudioDev{
 		{ID: "v", Name: "Steam Streaming Speakers", Virtual: true},
-		{ID: "h", Name: "Kulaklık (USB Headset)", Default: true},
-		{ID: "s", Name: "Hoparlör (Realtek)"},
+		{ID: "h", Name: "Headphones (USB Headset)", Default: true},
+		{ID: "s", Name: "Speakers (Realtek)"},
 	}
 	for {
 		c := getConfig()

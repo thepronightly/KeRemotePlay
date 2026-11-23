@@ -4,11 +4,10 @@ package main
 //
 // A paired Moonlight talks to Sunshine directly and asks nobody, so approval only
 // means something if nobody stays paired. Pairings are wiped when the host starts
-// and whenever a session ends; a new pairing needs the host's "Evet" first.
+// and whenever a session ends; a new pairing needs the host's "Yes" first.
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 )
@@ -44,18 +43,18 @@ func connAsk(ctx context.Context, ip, name string, timeout time.Duration) error 
 	}
 	if time.Now().Before(connBlocked[ip]) {
 		connMu.Unlock()
-		return errors.New("host bu bağlantıyı az önce reddetti")
+		return newErr("host bu bağlantıyı az önce reddetti", "the host turned this connection down a moment ago")
 	}
 	if connPending != nil {
 		connMu.Unlock()
-		return errors.New("host şu an başka bir bağlantı isteğine bakıyor, birazdan tekrar dene")
+		return newErr("host şu an başka bir bağlantı isteğine bakıyor, birazdan tekrar dene", "the host is answering another request, try again in a moment")
 	}
 	connSeq++
 	w := &connWait{ConnReq{connSeq, name, ip}, make(chan bool, 1)}
 	connPending = w
 	connMu.Unlock()
 
-	logf("Bağlantı isteği: %s (%s)", name, ip)
+	logf(L("Bağlantı isteği: %s (%s)", "Connection request: %s (%s)"), name, ip)
 	hostAlert(true)
 	defer hostAlert(false)
 	tick := time.NewTicker(5 * time.Second)
@@ -82,15 +81,15 @@ func connAsk(ctx context.Context, ip, name string, timeout time.Duration) error 
 	switch {
 	case yes:
 		connAllowed[ip] = name
-		logf("Bağlantıya izin verildi: %s", name)
+		logf(L("Bağlantıya izin verildi: %s", "Connection allowed: %s"), name)
 		return nil
 	case answered:
 		connBlocked[ip] = time.Now().Add(connBlockFor)
-		logf("Bağlantı reddedildi: %s", name)
-		return errors.New("host bağlantıyı reddetti")
+		logf(L("Bağlantı reddedildi: %s", "Connection refused: %s"), name)
+		return newErr("host bağlantıyı reddetti", "the host refused the connection")
 	}
-	logf("Bağlantı isteği cevapsız kaldı: %s", name)
-	return errors.New("host cevap vermedi")
+	logf(L("Bağlantı isteği cevapsız kaldı: %s", "Connection request not answered: %s"), name)
+	return newErr("host cevap vermedi", "the host did not answer")
 }
 
 // connAnswer is the host's click on the question.
@@ -136,7 +135,7 @@ func connView() (req *ConnReq, clients []string) {
 func leaveRole(j *Job, mode string) {
 	switch mode {
 	case "host":
-		hostEndSession("Host'tan çıkıldı", false)
+		hostEndSession(L("Host'tan çıkıldı", "Left the host screen"), false)
 		stopAgent()
 		hostStopSunshine(j)
 		tsRestore(j)
@@ -170,7 +169,7 @@ func getHotkeyErr() string  { hotkeyMu.Lock(); defer hotkeyMu.Unlock(); return h
 // ended by itself and keeps Ctrl+F4 reserved only while one is running.
 func startSessionWatch() {
 	sessionOnce.Do(func() {
-		go hotkeyLoop(sessionActive, func() { hostEndSession("Oturum Ctrl+F4 ile bitirildi", true) })
+		go hotkeyLoop(sessionActive, func() { hostEndSession(L("Oturum Ctrl+F4 ile bitirildi", "Session ended with Ctrl+F4"), true) })
 		go func() {
 			for {
 				time.Sleep(2 * time.Second)
@@ -192,10 +191,10 @@ func sessionTick() {
 	sessOn = game != 0
 	sessMu.Unlock()
 	if !was && game != 0 {
-		logf("Yayın başladı")
+		logf("%s", L("Yayın başladı", "Stream started"))
 	}
 	if was && game == 0 {
-		hostEndSession("Oturum bitti", false)
+		hostEndSession(L("Oturum bitti", "Session over"), false)
 	}
 }
 
@@ -206,14 +205,14 @@ func hostEndSession(why string, newCode bool) {
 	c := getConfig().Host
 	if c.SunUser != "" && sunshineRunning() {
 		if err := sunCloseApp(c.SunUser, c.SunPass); err != nil {
-			logf("Yayın kapatılamadı: %v", err)
+			logf(L("Yayın kapatılamadı: %v", "Could not close the stream: %v"), err)
 		}
 		if err := sunUnpairAll(c.SunUser, c.SunPass); err != nil {
-			logf("Eşleşmeler silinemedi: %v", err)
+			logf(L("Eşleşmeler silinemedi: %v", "Could not remove pairings: %v"), err)
 		}
 		stopped := func() bool { g, ok := sunCurrentGame(); return !ok || g == 0 }
 		if !waitFor(stopped, 3*time.Second) {
-			logf("Yayın kapanmadı; Sunshine yeniden başlatılıyor")
+			logf("%s", L("Yayın kapanmadı; Sunshine yeniden başlatılıyor", "Stream did not close; restarting Sunshine"))
 			_, _, _ = sunRequest("POST", "/api/restart", c.SunUser, c.SunPass, map[string]string{})
 		}
 	}
