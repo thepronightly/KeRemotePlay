@@ -1,0 +1,11 @@
+dist/
+*.exe
+*.syso.bak
+*.log
+
+# Artık geliştirilmeyen Android client (imza anahtarı ve APK içeriyor)
+Android/
+
+# Claude Code için yerel devir notu ve ayarlar
+CLAUDE.md
+.claude/

@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KeRemotePlay</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0b0e12; --panel:rgba(255,255,255,.055); --panel2:rgba(255,255,255,.07); --line:rgba(255,255,255,.1);
+  --field:rgba(0,0,0,.28); --hover:rgba(255,255,255,.12);
+  --text:#e7eaee; --dim:#a3adb9; --faint:#7b8592;
+  --accent:#4fd1a5; --accent-ink:#06261c; --warn:#f2b84b; --bad:#f2716b; --info:#7aa7ff;
+  --r:12px;
+  --glass:blur(18px) saturate(140%);
+  --glass-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 12px 32px rgba(0,0,0,.32);
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--text);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+/* Soft color behind the glass; without it the panels have nothing to blur. */
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:
+  radial-gradient(520px 420px at 18% 12%,rgba(79,209,165,.17),transparent 70%),
+  radial-gradient(560px 460px at 84% 30%,rgba(122,167,255,.13),transparent 70%),
+  radial-gradient(620px 420px at 50% 100%,rgba(42,143,158,.13),transparent 70%)}
+button,input,select,textarea{font:inherit;color:inherit}
+option{background:#1a1f26}
+.wrap{max-width:880px;margin:0 auto;padding:22px 22px 60px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#4fd1a5,#2a8f9e);display:grid;place-items:center;color:#06261c;font-weight:800;font-size:15px;letter-spacing:-.5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 4px 14px rgba(79,209,165,.2)}
+header h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
+header .sub{color:var(--dim);font-size:13px}
+header .sp{flex:1}
+.pill{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.link{background:none;border:0;color:var(--dim);cursor:pointer;padding:4px 6px;border-radius:6px;font-size:13px}
+.link:hover{color:var(--text);background:var(--panel2)}
+.btn{background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:9px;cursor:pointer;font-weight:550;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);transition:background .15s,border-color .15s,filter .15s}
+.btn:hover{border-color:rgba(255,255,255,.2);background:var(--hover)}
+.btn.primary{background:linear-gradient(180deg,#60dcb3,#45c498);border-color:rgba(255,255,255,.18);color:var(--accent-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 14px rgba(79,209,165,.2)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.big{font-size:17px;padding:14px 30px;border-radius:12px}
+.btn.small{padding:5px 10px;font-size:12.5px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--dim)} .faint{color:var(--faint)}
+code,.mono{font-family:"Cascadia Mono",Consolas,monospace;font-size:12.5px}
+
+/* chooser */
+.choose{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:30px}
+.choice{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;cursor:pointer;text-align:left}
+.choice:hover{border-color:var(--accent)}
+.choice h2{margin:10px 0 6px;font-size:18px}
+.choice p{margin:0;color:var(--dim)}
+.choice .ic{font-size:26px}
+.lead{font-size:15px;color:var(--dim);margin:0}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:grid;grid-template-columns:34px 1fr;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+.step .n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.step.done .n{background:rgba(79,209,165,.14);border-color:rgba(79,209,165,.45);color:var(--accent)}
+.step.warn .n{background:rgba(242,184,75,.12);border-color:rgba(242,184,75,.45);color:var(--warn)}
+.step.locked{opacity:.5}
+.step h3{margin:3px 0 2px;font-size:15px;font-weight:620}
+.step p{margin:2px 0 0;color:var(--dim)}
+.step .actions{margin-top:10px}
+.state{font-size:12.5px;font-weight:600}
+.state.ok{color:var(--accent)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+input[type=text],input[type=password],input[type=number],textarea,select{background:var(--field);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+textarea{width:100%;resize:vertical;min-height:70px}
+.invite{font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;word-break:break-all;min-height:84px}
+ol.howto{margin:8px 0 10px 18px;padding:0;color:var(--dim)} ol.howto li{margin:3px 0} ol.howto b{color:var(--text);font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin-top:8px;font-size:13px}
+.kv .k{color:var(--faint)}
+details.sub{margin-top:8px} details.sub summary{cursor:pointer;color:var(--dim);font-size:13px}
+
+/* client hero */
+.hero{background:linear-gradient(160deg,#18211f,#161a1f 55%);border:1px solid var(--line);border-radius:18px;padding:22px 22px 20px}
+.hero .top{display:flex;align-items:flex-start;gap:12px}
+.hero h2{margin:0;font-size:22px;font-weight:650}
+.hero .ip{color:var(--faint);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.chip{display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:99px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.ok{background:var(--accent)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.playrow{display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap}
+.apps{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.advice{margin-top:14px;border-left:3px solid var(--warn);background:rgba(242,184,75,.07);padding:10px 12px;border-radius:0 9px 9px 0;color:#e9d7b2;font-size:13.5px}
+.advice.info{border-color:var(--info);background:rgba(122,167,255,.07);color:#cfdcff}
+.settings{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.settings label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--faint)}
+.settings select,.settings input{font-size:13.5px;color:var(--text)}
+.tag{font-size:10.5px;padding:1px 6px;border-radius:6px;background:rgba(79,209,165,.13);color:var(--accent);vertical-align:1px}
+.slots{display:flex;flex-direction:column;gap:6px}
+.slot{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.slot.empty{background:transparent}
+.slotnum{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-weight:700;background:rgba(79,209,165,.13);color:var(--accent);flex:none}
+.slot.empty .slotnum{background:var(--panel2);color:var(--faint)}
+.wizard{border:1px solid rgba(79,209,165,.4);border-radius:14px;padding:16px 18px;background:linear-gradient(160deg,rgba(79,209,165,.09),var(--panel) 60%);-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass);box-shadow:var(--glass-shadow)}
+.wizprompt{font-size:20px;font-weight:650;margin:6px 0}
+.bar{height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:10px 0 4px}
+.bar span{display:block;height:100%;background:var(--accent);transition:width .2s}
+.section-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:22px 0 8px}
+
+/* job banner */
+.job{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass);box-shadow:var(--glass-shadow)}
+.job.ok{border-color:rgba(79,209,165,.5)} .job.err{border-color:rgba(242,113,107,.6)}
+.job .head{display:flex;align-items:center;gap:10px;font-weight:600}
+.job .lines{margin-top:6px;font-size:12.5px;color:var(--dim);max-height:120px;overflow:auto;white-space:pre-wrap}
+.job .errtxt{color:var(--bad);margin-top:6px}
+.spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:grid;place-items:center;padding:16px}
+/* A backdrop filter inside .modal sees nothing behind it, so this card relies on its fill. */
+.modal .card{width:100%;max-width:440px;background:rgba(30,35,42,.9);-webkit-backdrop-filter:none;backdrop-filter:none}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:rgba(58,32,32,.82);border:1px solid var(--bad);color:#ffd9d6;padding:10px 16px;border-radius:10px;max-width:90%;display:none;z-index:9;-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass)}
+.toast.okk{background:rgba(22,52,43,.82);border-color:var(--accent);color:#c9f5e5}
+footer{margin-top:26px;color:var(--faint);font-size:12.5px}
+details.log summary{cursor:pointer}
+details.log pre{background:var(--field);border:1px solid var(--line);border-radius:9px;padding:10px;max-height:260px;overflow:auto;font-size:11.5px;color:var(--dim);white-space:pre-wrap}
+@media (max-width:640px){.choose{grid-template-columns:1fr}}
+
+/* simple screens */
+.center{max-width:560px;margin:34px auto 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px;-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass);box-shadow:var(--glass-shadow)}
+.card h2{margin:0 0 6px;font-size:20px;font-weight:650}
+.card p{margin:4px 0;color:var(--dim)}
+.or{display:flex;align-items:center;gap:12px;color:var(--faint);margin:22px 0;font-size:13px}
+.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.btn.wide{width:100%}
+.found{color:var(--accent);font-size:13px;margin-top:6px}
+.checklist{display:flex;flex-direction:column;gap:2px;margin:14px 0 4px}
+.ci{display:flex;align-items:center;gap:12px;padding:9px 4px}
+.ci .mark{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;border:1px solid var(--line);color:var(--faint);flex:none}
+.ci.done .mark{background:rgba(79,209,165,.14);border-color:rgba(79,209,165,.45);color:var(--accent)}
+.ci.now .mark{border-color:var(--accent)}
+.ci .t{flex:1} .ci .t b{font-weight:600} .ci .t span{display:block;color:var(--faint);font-size:12.5px}
+.ci.todo .t b{color:var(--dim)}
+.box{margin-top:12px;border:1px solid rgba(79,209,165,.35);background:linear-gradient(160deg,rgba(79,209,165,.1),rgba(255,255,255,.03) 60%);border-radius:12px;padding:14px 16px}
+.box ol{margin:6px 0 0 18px;padding:0;color:var(--dim)} .box li{margin:3px 0} .box b{color:var(--text)}
+.code{font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;word-break:break-all;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:84px;overflow:hidden;color:var(--dim);margin:12px 0}
+.note{margin-top:12px;font-size:13px;color:var(--dim);display:flex;gap:8px;align-items:flex-start}
+.note .i{color:var(--warn)}
+details.adv{margin-top:18px} details.adv>summary{cursor:pointer;color:var(--dim);font-size:13px}
+details.adv .inner{margin-top:10px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass);box-shadow:var(--glass-shadow)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">KR</div>
+    <div><h1>KeRemotePlay</h1><div class="sub" id="sub"></div></div>
+    <div class="sp"></div>
+  </header>
+  <div id="job"></div>
+  <div id="root"><p class="muted">Yükleniyor…</p></div>
+  <footer>
+    <div class="row" style="justify-content:space-between">
+      <details class="log" id="logbox" style="flex:1"><summary>Ayrıntılar / kayıt</summary><pre id="log"></pre>
+        <div class="row"><button class="btn small" onclick="act('open-log')">Kayıt dosyasını aç</button><span class="faint" id="logpath"></span></div>
+      </details>
+      <button class="link" id="homebtn" style="display:none;align-self:flex-start" onclick="act('set-mode',{mode:''})">Başa dön</button>
+    </div>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const T = new URLSearchParams(location.search).get('t') || '';
+let S = null, lastHTML = '', lastJob = '', revealPass = false, showSettings = false;
+
+async function api(path, body){
+  const r = await fetch(path, {method: body ? 'POST' : 'GET', headers: {'X-KRP-Token': T, 'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function act(action, args){
+  try {
+    const r = await api('/api/action', {action, args: args || {}});
+    if (!r.ok) toast(r.error);
+    await refresh();
+    return r;
+  } catch(e){ toast('Uygulamaya ulaşılamadı: ' + e.message); }
+}
+function toast(msg, ok){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast' + (ok ? ' okk' : ''); t.style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', 5200);
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const val = id => (document.getElementById(id) || {}).value || '';
+const busy = () => S && S.job && S.job.running;
+const dis = () => busy() ? 'disabled' : '';
+
+/* ---------------- start ---------------- */
+function viewStart(){
+  return `<div class="center">
+    <div class="card">
+      <h2>Bu bilgisayar ne olacak?</h2>
+      <p>Oyun hangi bilgisayarda açılıyorsa o Host olur.</p>
+      <div style="margin-top:14px"><button class="btn primary big wide" ${dis()} onclick="act('set-mode',{mode:'host'})">Host · Oyunu ben açıyorum</button></div>
+      <div style="margin-top:10px"><button class="btn big wide" ${dis()} onclick="act('set-mode',{mode:'client'})">Client · Arkadaşıma bağlanıyorum</button></div>
+    </div>
+    <p class="faint" style="text-align:center;margin-top:10px;font-size:12.5px">Gereken programlar (Sunshine, Tailscale, Moonlight) kendiliğinden kurulur. Windows bir kez izin sorar.</p>
+  </div>`;
+}
+function viewCode(c){
+  const clip = S.clipInvite || '';
+  return `<div class="center">
+    <div class="card">
+      <h2>Bağlantı kodu</h2>
+      <p>Host'un gönderdiği kodu yapıştır.</p>
+      ${c.notice ? `<div class="note"><span class="i">!</span><span>${esc(c.notice)}</span></div>` : ''}
+      <textarea class="invite" id="code" placeholder="KRP1-…" style="margin-top:12px">${esc(clip)}</textarea>
+      ${clip ? '<div class="found">✓ Panodaki kod bulundu.</div>' : ''}
+      <div style="margin-top:12px"><button class="btn primary big wide" ${dis()} onclick="join()">Bağlan</button></div>
+    </div>
+  </div>`;
+}
+function join(){ act('join', {code: val('code')}); }
+
+/* ---------------- host ---------------- */
+function viewHost(h){
+  return `<div class="center">${h.ready ? hostReadyCard(h) : hostSetupCard(h)}${hostSettings(h)}</div>${hostRequest(h.request)}`;
+}
+
+function hostRequest(r){
+  if (!r) return '';
+  return `<div class="modal"><div class="card">
+    <h2>Bağlantı isteği</h2>
+    <p><b>${esc(r.name)}</b> bilgisayarınıza bağlanmak istiyor. İzin verilsin mi?</p>
+    <div class="row" style="margin-top:16px;gap:10px">
+      <button class="btn primary big" style="flex:1" onclick="act('conn-answer',{id:'${r.id}',yes:'1'})">Evet</button>
+      <button class="btn big" style="flex:1" onclick="act('conn-answer',{id:'${r.id}',yes:'0'})">Hayır</button>
+    </div>
+  </div></div>`;
+}
+
+function hostSessionBlock(h){
+  const who = (h.clients || []).join(', ');
+  if (!h.session && !who) return '';
+  return `<div class="note" style="align-items:center"><span class="i">●</span><span style="flex:1"><b>${esc(who || 'Arkadaşın')}</b> ${h.session ? 'bağlı' : 'bağlanabilir'}. ${h.hotkeyErr ? 'Ctrl+F4 kullanılamıyor; düğmeyi kullan.' : 'Ctrl+F4 oturumu hemen bitirir.'}</span>
+    <button class="btn small" onclick="act('end-session')">Oturumu bitir</button></div>`;
+}
+
+function hostSetupCard(h){
+  const ts = h.ts || {}, running = busy(), ph = running ? h.phase : '';
+  const svc = h.sunService || {};
+  const svcBad = h.sunInstalled && svc.exists && (!svc.manual || !svc.control);
+  const progDone = h.sunCreds === 'ok' && h.firewall && !svcBad;
+  const items = [
+    {key: 'setup', done: progDone, title: 'Programlar', sub: 'Sunshine, Tailscale ve kol sürücüsü kurulur, ayarlanır.'},
+    {key: 'login', done: ts.backendState === 'Running', title: 'Tailscale hesabı', sub: 'Tarayıcıda Google/Microsoft/GitHub ile giriş. Sadece ilk sefer.'},
+    {key: 'key', done: h.authKeySet, title: 'Davet anahtarı', sub: 'Arkadaşların hesap açmadan bağlanabilsin diye. Sadece ilk sefer.'},
+  ];
+  const list = items.map((it, i) => {
+    const cls = it.done ? 'done' : (ph === it.key ? 'now' : 'todo');
+    const mark = it.done ? '✓' : (ph === it.key ? '<span class="spin" style="width:12px;height:12px"></span>' : i + 1);
+    return `<div class="ci ${cls}"><span class="mark">${mark}</span><span class="t"><b>${it.title}</b><span>${it.sub}</span></span></div>`;
+  }).join('');
+  let extra = '';
+  if (!running && svcBad) extra = `<div class="note"><span class="i">!</span><span>Sunshine bundan sonra sadece bu ekrandayken açık olacak. Bunun için Windows bir kez izin sorar.</span></div>`;
+  if (ph === 'login') extra = `<div class="box"><b>Tarayıcıda Tailscale açıldı.</b><p>Hesabınla giriş yap; bitince burası kendiliğinden devam eder.</p></div>`;
+  if (ph === 'key') extra = `<div class="box"><b>Açılan Tailscale sayfasında:</b>
+      <ol><li><b>Generate auth key…</b> butonuna bas</li><li><b>Reusable</b> seçeneğini aç</li><li><b>Generate key</b> → <b>Copy</b></li></ol>
+      <p style="margin-top:8px">Kopyaladığın anda KeRemotePlay anahtarı kendisi alır.</p>
+      <div class="row" style="margin-top:10px"><button class="btn small" onclick="act('open-keys')">Sayfayı tekrar aç</button>
+      <input type="text" id="ak" placeholder="ya da buraya yapıştır: tskey-auth-…" style="flex:1;min-width:200px" onchange="act('set-authkey',{key:this.value})"></div></div>`;
+  const btn = running ? '' : `<div style="margin-top:14px"><button class="btn primary big wide" onclick="act('prepare')">${progDone || ts.backendState === 'Running' ? 'Devam et' : 'Davet kodu oluştur'}</button></div>`;
+  return `<div class="card"><h2>Davet kodu hazırlanıyor</h2>
+    <p>Bir kez yapılır; sonraki açılışlarda kod direkt hazır olur.</p>
+    <div class="checklist">${list}</div>${extra}${btn}</div>`;
+}
+
+function hostReadyCard(h){
+  const ag = h.agent || {}, au = h.audio || {};
+  const notes = [];
+  if (h.net && h.net.known && h.net.wifi) notes.push('Bu bilgisayar Wi-Fi\'de. Takılma olursa kablo tak; en büyük fark bunu yapar.');
+  if (au.known && !au.virtualSink && !au.steam) notes.push('Sanal hoparlör yok: <b>Steam\'i kur</b> (açık kalması gerekmez). Yoksa Discord sesin de yayına girebilir.');
+  if (!h.discordOK) notes.push(`Discord → Ses ve Görüntü → <b>Çıkış Cihazı</b>'nı "Varsayılan" yerine kulaklığın yap; yoksa arkadaşın Discord'u yankılı duyar. <button class="link" onclick="act('discord-ok',{v:'1'})">Tamam</button>`);
+  if (h.legacy) notes.push(`Eski sürümün kol sıralama görevi bu bilgisayarda kurulu. <button class="link" ${dis()} onclick="act('legacy-cleanup')">Kaldır</button>`);
+  return `<div class="card">
+    <div class="row" style="justify-content:space-between"><h2>Davet kodun hazır</h2><span class="state ok">● hazır</span></div>
+    <p>Kodu arkadaşına gönder (WhatsApp, Discord…). Bu kod her açılışta değişir; bağlanmak istediğinde sana sorulur.</p>
+    <div class="code" title="Davet kodu">${esc(h.invite)}</div>
+    <button class="btn primary big wide" onclick="copyInvite()">Kodu kopyala</button>
+    ${hostSessionBlock(h)}
+    ${ag.lastEvent ? `<p style="margin-top:12px">${esc(ag.lastEvent)}</p>` : `<p class="faint" style="margin-top:12px;font-size:12.5px">Oyun boyunca bu pencere açık kalsın; kapatınca oturum biter. Oyununu aç; arkadaşın ekranını görür, kendi koluyla oynar.</p>`}
+    ${notes.map(n => `<div class="note"><span class="i">!</span><span>${n}</span></div>`).join('')}
+  </div>`;
+}
+
+function hostSettings(h){
+  const r = h.relay || {}, devs = (r.devices || []).filter(d => !d.virtual);
+  const opts = [`<option value="" ${!h.relayTarget ? 'selected' : ''}>Otomatik</option>`]
+    .concat(devs.map(d => `<option value="${esc(d.id)}" ${d.id === h.relayTarget ? 'selected' : ''}>${esc(d.name)}</option>`)).join('');
+  let relay = '';
+  if (h.relayOn) relay = r.running ? `<span class="faint">Çalıyor: ${esc(r.target)}</span>` : (r.error ? `<span class="state warn">${esc(r.error)}</span>` : '');
+  return `<details class="adv" ${showSettings ? 'open' : ''} ontoggle="showSettings=this.open"><summary>Ayarlar</summary><div class="inner">
+    <label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" ${h.relayOn ? 'checked' : ''} onchange="act('relay',{on:this.checked?'1':'0'})"><b>Oyunun sesini ben de duyayım</b></label>
+    <p class="faint" style="margin:4px 0 0 26px">Yayın sırasında oyun sesi arkadaşına gider; bu açıkken senin kulaklığında da çalar.</p>
+    ${h.relayOn ? `<div class="row" style="margin:8px 0 0 26px"><select onchange="act('relay-target',{id:this.value})">${opts}</select>${relay}</div>` : ''}
+    <div style="margin-top:14px" class="row"><button class="link" onclick="if(confirm('Yeni kod üretilsin mi? Eski kod yeni bağlantılarda çalışmaz; zaten bağlanmış arkadaşlar etkilenmez.'))act('new-secret')">Yeni davet kodu üret</button>
+    ${h.authKeySet ? `<button class="link" onclick="if(confirm('Tailscale davet anahtarı değiştirilsin mi?'))act('clear-authkey')">Davet anahtarını değiştir</button>` : ''}
+    ${h.discordOK ? `<button class="link" onclick="act('discord-ok',{v:'0'})">Discord hatırlatmasını göster</button>` : ''}</div>
+    ${h.sunUser ? `<div class="kv"><span class="k">Sunshine paneli</span><span><a href="#" onclick="act('open-panel');return false" style="color:var(--info)">${esc(h.sunPanel)}</a></span>
+      <span class="k">Kullanıcı</span><span class="mono">${esc(h.sunUser)}</span>
+      <span class="k">Şifre</span><span class="mono">${revealPass ? esc(h.sunPass) : '••••••••'} <button class="link" onclick="revealPass=!revealPass;render()">${revealPass ? 'gizle' : 'göster'}</button></span></div>` : ''}
+  </div></details>`;
+}
+
+async function copyInvite(){
+  const r = await act('copy-invite');
+  if (r && r.ok) toast('Davet kodu kopyalandı', true);
+}
+
+/* ---------------- client ---------------- */
+function viewClient(c){
+  if (!c.joined) return viewCode(c);
+  const hl = c.health || {}, p = hl.ping, hi = hl.hostInfo;
+  let status;
+  if (c.hostOnline) status = `<span class="chip"><span class="dot ok"></span>Çevrim içi${p && p.ok ? ` · ${p.ms} ms` : ''}</span>`;
+  else status = `<span class="chip"><span class="dot bad"></span>${c.onTailnet ? 'Host kapalı' : 'Bağlı değil'}</span>`;
+
+  const apps = (c.apps && c.apps.length) ? c.apps : ['Desktop'];
+  const main = apps.includes('Desktop') ? 'Desktop' : apps[0];
+  const pl = c.plan || {};
+  // "Oyna" does whatever is missing first (network, pairing), so it is the only button.
+  const action = `<button class="btn primary big wide" ${dis()} data-app="${esc(main)}" onclick="play(this.dataset.app)">▶ Oyna</button>
+    <p class="faint" style="margin-top:8px;font-size:12.5px;text-align:center">${pl.width ? `${esc(pl.label.split(' · ')[0])} · ${pl.fps} fps · ${(pl.bitrateKbps / 1000).toFixed(0)} Mbps${pl.autoRes && pl.autoFps && pl.autoBitrate ? ' (otomatik)' : ''}` : ''}</p>`;
+
+  const notes = [];
+  if (p && p.ok && p.kind === 'derp') notes.push('Bağlantı şu an aracı sunucudan geçiyor; gecikme yüksek olabilir. Biraz sonra genelde doğrudan bağlantıya geçer.');
+  if (hi && hi.net && hi.net.known && hi.net.wifi) notes.push('Host Wi-Fi\'de; takılma olursa host kabloya geçsin.');
+  if (c.net && c.net.known && c.net.wifi) notes.push('Bu bilgisayar Wi-Fi\'de; takılma olursa kablo ya da 5 GHz dene.');
+  if (c.speed && c.speed.mbps < 8) notes.push(`Hat ${c.speed.mbps.toFixed(1)} Mbps; görüntü kalitesi buna göre düşürüldü.`);
+  if (hi && !hi.sunshine) notes.push('Host\'ta Sunshine çalışmıyor.');
+  else if (hl.sunReach === false) notes.push('Host\'taki Sunshine\'a ulaşılamıyor; büyük ihtimalle host\'un güvenlik duvarı engelliyor. Host KeRemotePlay\'i güncelleyip "Devam et"e bassın.');
+
+  let out = `<div class="center"><div class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-start"><div><h2>${esc(c.hostName || 'Host')}</h2></div>${status}</div>
+    <div style="margin-top:16px">${action}</div>
+    ${notes.map(n => `<div class="note"><span class="i">!</span><span>${n}</span></div>`).join('')}
+  </div>`;
+  out += clientPadsBlock(c);
+  out += clientSettings(c, apps);
+  return out + '</div>';
+}
+
+function clientSettings(c, apps){
+  const ss = c.stream || {res: 'auto', fps: 0, bitrateKbps: 0};
+  const resNames = {auto: 'Otomatik', native: `Ekranımla aynı (${(c.display || '').split(' ')[0]})`, '720': '720p', '900': '900p', '1080': '1080p', '1440': '1440p', '2160': '4K'};
+  const resOpts = (c.resOptions || []).map(k => `<option value="${k}" ${k === ss.res ? 'selected' : ''}>${esc(resNames[k] || k)}</option>`).join('');
+  const fpsOpts = (c.fpsOptions || []).map(f => `<option value="${f}" ${f === ss.fps ? 'selected' : ''}>${f ? f + ' fps' : 'Otomatik'}</option>`).join('');
+  const mbpsVal = ss.bitrateKbps ? (ss.bitrateKbps / 1000) : '';
+  const pl = c.plan || {};
+  return `<details class="adv" ${showSettings ? 'open' : ''} ontoggle="showSettings=this.open"><summary>Ayarlar</summary><div class="inner">
+    <div class="settings" style="margin-top:0;padding-top:0;border:0">
+      <label>Çözünürlük<select id="s-res" onchange="saveStream()">${resOpts}</select></label>
+      <label>FPS<select id="s-fps" onchange="saveStream()">${fpsOpts}</select></label>
+      <label>Bitrate<span class="row" style="gap:6px;flex-wrap:nowrap"><input type="number" id="s-mbps" min="0.5" max="500" step="0.5" placeholder="Otomatik" value="${mbpsVal}" onchange="saveStream()" style="width:110px"><span class="muted">Mbps</span></span></label>
+      <button class="btn small" ${dis()} onclick="act('speed')" style="align-self:flex-end">Hattı ölç</button>
+    </div>
+    ${pl.note ? `<p style="color:var(--warn);margin:8px 0 0">${esc(pl.note)}</p>` : ''}
+    <p class="faint" style="margin:8px 0 0">Otomatik: hat ölçülür, ekranına ve hıza göre en iyisi seçilir.${c.speed ? ` Son ölçüm ${c.speed.mbps.toFixed(1)} Mbps (${ago(c.speed.at)}).` : ''}</p>
+    ${apps.length > 1 ? `<div class="section-title">Host'taki uygulamalar</div><div class="apps">${apps.map(a => `<button class="btn small" data-app="${esc(a)}" onclick="play(this.dataset.app)">${esc(a)}</button>`).join('')}</div>` : ''}
+  </div></details>`;
+}
+
+function clientPadsBlock(c){
+  const pv = c.pads || {};
+  if (pv.wizard) {
+    const w = pv.wizard, pct = Math.round(100 * w.step / w.total);
+    let body;
+    if (w.done) body = `<p><b>Bitti.</b> ${Object.keys(w.binds || {}).length} tuş tanıtıldı.</p>
+        <div class="actions row"><button class="btn primary" onclick="act('cpad-save')">Kaydet</button><button class="link" onclick="act('cpad-cancel')">Vazgeç</button></div>`;
+    else body = `<p class="muted" style="margin-bottom:4px">Adım ${w.step + 1} / ${w.total}</p>
+        <div class="wizprompt">${esc(w.prompt)}</div>
+        <p class="faint" style="min-height:20px">${w.waiting ? 'Tamam, bırak…' : 'Bas ya da it, bekliyor…'}</p>
+        <div class="bar"><span style="width:${pct}%"></span></div>
+        <div class="actions row"><button class="btn small" onclick="act('cpad-skip')">Bu tuş yok, atla</button><button class="link" onclick="act('cpad-cancel')">İptal</button></div>`;
+    return `<div class="wizard" style="margin-top:14px"><h3 style="margin:0 0 8px">Kolu tanıt: ${esc(w.name)}</h3>${body}</div>`;
+  }
+  if (pv.test) {
+    const t = pv.test, pr = (t.pressed || []);
+    return `<div class="wizard" style="margin-top:14px"><h3 style="margin:0 0 8px">Kol testi: ${esc(t.name)}</h3>
+      <div class="chips" style="min-height:40px">${pr.length ? pr.map(x => `<span class="chip"><span class="dot ok"></span>${esc(x)}</span>`).join('') : '<span class="faint">Basılı tuş yok</span>'}</div>
+      <div class="actions"><button class="btn small" onclick="act('cpad-test-stop')">Testi kapat</button></div></div>`;
+  }
+  if (!pv.available || pv.paused) return '';
+  const pads = pv.pads || [];
+  if (!pads.length) return `<p class="faint" style="margin-top:12px;text-align:center;font-size:12.5px">Kol bağlı değil. Tak ya da eşle; burada görünür.</p>`;
+  return `<div style="margin-top:12px" class="slots">` + pads.map(p => {
+    const g = esc(p.guid);
+    if (p.recognized) return `<div class="slot"><span class="dot ok"></span><span style="flex:1">${esc(p.name)}</span>
+        <button class="link" data-g="${g}" onclick="act('cpad-test',{guid:this.dataset.g})">Test et</button></div>`;
+    return `<div class="slot"><span class="dot warn"></span><span style="flex:1">${esc(p.name)}<br><span style="font-size:12px;color:var(--warn)">Bu kol tanınmıyor; 1 dakikada tanıtabilirsin</span></span>
+        <button class="btn primary small" data-g="${g}" onclick="act('cpad-wizard',{guid:this.dataset.g})">Kolu tanıt</button></div>`;
+  }).join('') + `</div>`;
+}
+
+async function play(app){ await act('play', {app}); }
+function saveStream(){
+  act('stream-settings', {res: val('s-res') || 'auto', fps: val('s-fps') || '0', mbps: val('s-mbps')});
+}
+function ago(t){
+  const d = Math.max(0, Math.round(Date.now() / 1000 - t));
+  return d < 60 ? 'az önce' : d < 3600 ? Math.round(d / 60) + ' dk önce' : d < 86400 ? Math.round(d / 3600) + ' saat önce' : Math.round(d / 86400) + ' gün önce';
+}
+
+/* ---------------- job banner ---------------- */
+function viewJob(j){
+  if (!j) return '';
+  if (!j.running && j.ok) return '';
+  const cls = j.running ? '' : 'err';
+  const icon = j.running ? '<span class="spin"></span>' : '<span style="color:var(--bad)">✕</span>';
+  const lines = (j.lines || []).slice(-3).map(esc).join('\n');
+  return `<div class="center" style="margin-top:0"><div class="job ${cls}"><div class="head">${icon}<span>${esc(j.name)}${j.running ? '…' : ': olmadı'}</span><span style="flex:1"></span>${j.running ? '' : '<button class="link" onclick="act(\'dismiss\')">Kapat</button>'}</div>
+    ${lines ? `<div class="lines">${lines}</div>` : ''}${j.error ? `<div class="errtxt">${esc(j.error)}</div>` : ''}</div></div>`;
+}
+
+/* ---------------- render loop ---------------- */
+function render(){
+  if (!S) return;
+  const mode = S.mode || '';
+  document.getElementById('homebtn').style.display = mode && !busy() ? '' : 'none';
+  const jh = viewJob(S.job);
+  if (jh !== lastJob) { document.getElementById('job').innerHTML = jh; lastJob = jh; }
+
+  const html = mode === 'host' ? viewHost(S.host || {}) : mode === 'client' ? viewClient(S.client || {}) : viewStart();
+  if (html !== lastHTML) {
+    const keep = {}; let focus = null, sel = null;
+    document.querySelectorAll('#root input, #root textarea').forEach(e => { if (e.id && !e.readOnly && e.value) keep[e.id] = e.value; });
+    const ae = document.activeElement;
+    if (ae && ae.id && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) { focus = ae.id; sel = [ae.selectionStart, ae.selectionEnd]; }
+    document.getElementById('root').innerHTML = html; lastHTML = html;
+    for (const id in keep) { const e = document.getElementById(id); if (e && e.type !== 'checkbox') e.value = keep[id]; }
+    if (focus) { const e = document.getElementById(focus); if (e) { e.focus(); try { e.setSelectionRange(sel[0], sel[1]); } catch(_){} } }
+  }
+  const lg = document.getElementById('log');
+  const lt = (S.log || []).join('\n');
+  if (lg.textContent !== lt) lg.textContent = lt;
+  document.getElementById('logpath').textContent = S.logPath || '';
+  document.getElementById('sub').textContent = 'Sürüm ' + S.version;
+}
+
+async function refresh(){
+  try { S = await api('/api/state'); render(); }
+  catch(e){ document.getElementById('root').innerHTML = '<p class="muted">Uygulamaya ulaşılamıyor. Pencereyi kapatıp tekrar aç.</p>'; lastHTML = ''; }
+}
+refresh();
+// Poll fast while the controller wizard or test is open so presses feel instant.
+(function loop(){
+  const pv = (S && S.client && S.client.pads) || {};
+  setTimeout(async () => { await refresh(); loop(); }, (pv.wizard || pv.test) ? 250 : 1500);
+})();
+</script>
+</body>
+</html>
