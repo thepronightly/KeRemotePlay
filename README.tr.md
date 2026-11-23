@@ -179,8 +179,8 @@ Kol veritabanı: [SDL_GameControllerDB](https://github.com/mdqinc/SDL_GameContro
 | **Hat X Mbps** | Host'tan sana gerçekten gelen hız | 8 Mbps altıysa sebep neredeyse her zaman host'un upload'udur; Otomatik ayar buna göre düşürür |
 
 **Relay kalıcıysa:** Tailscale'in *peer relay* özelliğiyle (ücretsiz planda var) Türkiye'de
-ucuz bir VPS'i ya da sabit IP'si olan bir PC'yi aracı yapabilirsin. Bu, KeRemotePlay'in
-sonraki sürümleri için yol haritasında.
+ucuz bir VPS'i ya da sabit IP'si olan bir PC'yi aracı yapabilirsin. KeRemotePlay bunu henüz
+kendisi kurmuyor (aşağıda *Fikirler*'e bak).
 
 ## Arkadaş olmadan nasıl test edilir
 
@@ -344,10 +344,11 @@ Linux/Mac'te de derlenip test edilebilir (`go test ./...`); orada araçlar PATH'
 | `speed.go` | Hız ölçümü ve otomatik kalite planı (Moonlight'ın bitrate formülüyle uyumlu) |
 | `i18n.go`, `lang_*.go` | Türkçe/İngilizce. Her metin yerinde `L("Türkçe", "English")` olarak yazılır. |
 
-### Yol haritası
-1. ~~MVP: Windows host + client, otomatik eşleştirme, bağlantı sağlığı~~
-2. ~~Hattı ölçüp çözünürlük/fps/bitrate seçimi~~ (0.2.0), ~~elle ayar + Discord/ses düzeni~~ (0.3.0)
-3. ~~Couch co-op: oyun sesi host'ta da çalsın ama Discord yayına girmesin, kol sürücüsü~~ (0.4.0)
-4. ~~İngilizce arayüz~~ (0.9.7)
-5. Client çözünürlüğüne göre sanal ekran
-6. Tek exe: Tailscale'i uygulamanın içine gömmek (tsnet), ayrıca kurulum yok
+### Fikirler
+
+İleride gelebilecek şeyler. Bunlar fikir, söz değil.
+
+- **Sanal ekran:** arkadaşın ekran çözünürlüğüne uyan bir ekran.
+- **Tek exe:** Tailscale uygulamanın içine gömülür (tsnet); ayrı kurulum ve auth key adımı kalkar.
+- **Peer relay:** iki bilgisayar doğrudan bağlanamadığında yayın, Tailscale'in yurtdışındaki
+  sunucuları yerine yakındaki kendi PC'nden ya da ucuz bir sunucudan geçer.

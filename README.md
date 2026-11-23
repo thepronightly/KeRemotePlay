@@ -193,7 +193,8 @@ up in the list. Controller database: [SDL_GameControllerDB](https://github.com/m
 | **Line X Mbps** | The real speed from the host to you | Under 8 Mbps the reason is almost always the host's upload speed; Auto lowers the settings to match |
 
 **If the relay stays:** with Tailscale's *peer relay* feature (available on the free plan) you can
-make a cheap VPS near you, or a PC with a fixed IP, the middleman. This is on the roadmap.
+make a cheap VPS near you, or a PC with a fixed IP, the middleman. KeRemotePlay does not set this up
+for you yet (see *Ideas* below).
 
 ## Testing without a friend
 
@@ -366,10 +367,11 @@ builds and tests on Linux/Mac (`go test ./...`); there the tools are looked up o
 | `speed.go` | Speed test and automatic quality plan (matches Moonlight's bitrate formula) |
 | `i18n.go`, `lang_*.go` | Turkish/English. Every text is written in place as `L("Türkçe", "English")`. |
 
-### Roadmap
-1. ~~MVP: Windows host + client, automatic pairing, connection health~~
-2. ~~Measure the line and pick resolution/fps/bitrate~~ (0.2.0), ~~manual settings + Discord/audio setup~~ (0.3.0)
-3. ~~Couch co-op: game audio on the host too while Discord stays out of the stream, controller driver~~ (0.4.0)
-4. ~~English interface~~ (0.9.7)
-5. Virtual display matching the client's resolution
-6. Single exe: Tailscale built into the app (tsnet), no separate install
+### Ideas
+
+Things that might come later. These are ideas, not promises.
+
+- **Virtual display** matching the friend's screen resolution.
+- **Single exe:** Tailscale built into the app (tsnet), so there is no separate install or auth key step.
+- **Peer relay:** when the two PCs cannot connect directly, route the stream through a nearby PC
+  or cheap server of your own instead of Tailscale's relay servers abroad.
