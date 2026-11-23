@@ -1,0 +1,77 @@
+# Tests and builds on every push and pull request. A "v*" tag also publishes the
+# exe and its SHA256 as a GitHub release, so the download is built from this
+# source by GitHub, not on anyone's own PC.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        shell: bash
+        run: |
+          go build -trimpath -ldflags "-s -w -H windowsgui" -o dist/KeRemotePlay.exe .
+          cd dist && sha256sum KeRemotePlay.exe > KeRemotePlay.exe.sha256 && cat KeRemotePlay.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KeRemotePlay
+          path: dist/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: KeRemotePlay
+          path: dist
+
+      - name: Check the tag matches the app version
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          got=$(sed -n 's/^const appVersion = "\(.*\)"/\1/p' config.go)
+          if [ "$want" != "$got" ]; then echo "tag $GITHUB_REF_NAME but appVersion $got"; exit 1; fi
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sum=$(cut -d' ' -f1 dist/KeRemotePlay.exe.sha256)
+          cat > notes.md <<EOF
+          Built by GitHub Actions from this tag ([build log](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})).
+          The exe is not signed; Windows SmartScreen may warn about it.
+
+          **SHA256** \`KeRemotePlay.exe\`: \`${sum}\`
+
+          Before using it, read [Security and known limits](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}#security-and-known-limits)
+          · [Güvenlik ve bilinen sınırlar](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/README.tr.md#güvenlik-ve-bilinen-sınırlar).
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/KeRemotePlay.exe dist/KeRemotePlay.exe.sha256 \
+            --title "KeRemotePlay $GITHUB_REF_NAME" --notes-file notes.md --generate-notes --prerelease

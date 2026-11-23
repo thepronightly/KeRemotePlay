@@ -289,7 +289,7 @@ like a TV or tablet with Moonlight by hand, you have to pair them again every ti
   and auth key included). Do not share this file; look inside the log (`krp.log`) before sending it
   to anyone.
 - **The exe is not signed.** Windows SmartScreen may say "unrecognized app". Only download the exe
-  from this repository's **Releases** page, or build it yourself from source (see *Development*).
+  from this repository's **Releases** page (built by GitHub Actions, with its SHA256 next to it), or build it yourself from source (see *Development*).
 - Tailscale's free plan is for non-commercial use.
 - Windows only. MIT licensed, **with no warranty of any kind** (see [LICENSE](LICENSE)).
 

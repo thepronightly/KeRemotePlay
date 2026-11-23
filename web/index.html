@@ -273,6 +273,9 @@ function hostSetupCard(h){
       <ol>${L('<li><b>Generate auth key…</b> butonuna bas</li><li><b>Reusable</b> seçeneğini aç</li><li><b>Generate key</b> → <b>Copy</b></li>',
               '<li>Press <b>Generate auth key…</b></li><li>Turn on <b>Reusable</b></li><li><b>Generate key</b> → <b>Copy</b></li>')}</ol>
       <p style="margin-top:8px">${L('Kopyaladığın anda KeRemotePlay anahtarı kendisi alır.', 'KeRemotePlay picks the key up as soon as you copy it.')}</p>
+      <div class="note"><span class="i">!</span><span>${L(
+        'Bu anahtarı alan herkes Tailscale ağına girebilir; varsayılan ayarla ağındaki diğer cihazlara da ulaşır. En kolayı KeRemotePlay için <b>ayrı bir Tailscale hesabı</b> kullanmak. ',
+        'Anyone with this key can join your Tailscale network and, by default, reach your other devices on it. The easiest fix is a <b>separate Tailscale account</b> for KeRemotePlay. ')}<button class="link" style="padding:0" onclick="openSecurity()">${L('Ayrıntılar', 'Details')}</button></span></div>
       <div class="row" style="margin-top:10px"><button class="btn small" onclick="act('open-keys')">${L('Sayfayı tekrar aç', 'Open the page again')}</button>
       <input type="text" id="ak" placeholder="${L('ya da buraya yapıştır: tskey-auth-…', 'or paste it here: tskey-auth-…')}" style="flex:1;min-width:200px" onchange="act('set-authkey',{key:this.value})"></div></div>`;
   const btn = running ? '' : `<div style="margin-top:14px"><button class="btn primary big wide" onclick="act('prepare')">${progDone || ts.backendState === 'Running' ? L('Devam et', 'Continue') : L('Davet kodu oluştur', 'Make an invite code')}</button></div>`;
@@ -299,6 +302,11 @@ function hostReadyCard(h){
   </div>`;
 }
 
+function openSecurity(){
+  act('open-url', {url: en()
+    ? 'https://github.com/thepronightly/KeRemotePlay#security-and-known-limits'
+    : 'https://github.com/thepronightly/KeRemotePlay/blob/main/README.tr.md#g%C3%BCvenlik-ve-bilinen-s%C4%B1n%C4%B1rlar'});
+}
 function confirmNewCode(){
   if (confirm(L('Yeni kod üretilsin mi? Eski kod yeni bağlantılarda çalışmaz; zaten bağlanmış arkadaşlar etkilenmez.', 'Make a new code? The old one stops working for new connections; friends already connected are not affected.'))) act('new-secret');
 }

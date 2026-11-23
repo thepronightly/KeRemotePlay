@@ -612,8 +612,8 @@ func clientDisplay() DisplayInfo {
 }
 
 func sunUnreachableMsg() string {
-	return L("Host'taki KeRemotePlay'e ulaşılıyor ama Sunshine'a ulaşılamıyor; büyük ihtimalle host'un Windows güvenlik duvarı engelliyor. Host KeRemotePlay'i 0.9.2 ya da sonrasına güncelleyip \"Devam et\"e bassın (güvenlik duvarı izni eklenir), sonra tekrar dene",
-		"KeRemotePlay on the host answers but Sunshine does not; most likely the host's Windows firewall blocks it. The host should update KeRemotePlay to 0.9.2 or later and press \"Continue\" (this adds the firewall rule), then try again")
+	return L("Host'taki KeRemotePlay'e ulaşılıyor ama Sunshine'a ulaşılamıyor; büyük ihtimalle host'un Windows güvenlik duvarı engelliyor. Host KeRemotePlay'i son sürüme güncelleyip \"Devam et\"e bassın (güvenlik duvarı izni eklenir), sonra tekrar dene",
+		"KeRemotePlay on the host answers but Sunshine does not; most likely the host's Windows firewall blocks it. The host should update KeRemotePlay to the latest version and press \"Continue\" (this adds the firewall rule), then try again")
 }
 
 func sunPortOr(p int) int {

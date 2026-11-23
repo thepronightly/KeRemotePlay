@@ -268,7 +268,7 @@ eşleştirmen gerekir.
   (Sunshine şifresi ve auth key dahil). Bu dosyayı kimseyle paylaşma; kayıt dosyası
   (`krp.log`) gönderirken içine bakmak da iyi olur.
 - **Exe imzasız.** Windows SmartScreen "tanınmayan uygulama" diyebilir. Exe'yi sadece bu reponun
-  **Releases** sayfasından indir ya da kaynaktan kendin derle (aşağıda *Geliştirme*).
+  **Releases** sayfasından indir (GitHub Actions derler, SHA256 yanında durur) ya da kaynaktan kendin derle (aşağıda *Geliştirme*).
 - Ücretsiz Tailscale planı ticari olmayan kullanım içindir.
 - Program sadece Windows için. MIT lisanslı, **hiçbir garanti verilmez** (bkz. [LICENSE](LICENSE)).
 
