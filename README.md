@@ -258,8 +258,9 @@ On the first Host and Client setup Windows asks for permission once. With it:
 - **Tailscale** on the host is set to "unattended" mode (so it can stay connected while you are
   signed out).
 - Two inbound **Windows Firewall** rules are added, for the pairing service and for Sunshine's
-  ports. Both are open **only to Tailscale addresses** (100.64.0.0/10); they cannot be reached from
-  your home network or the internet.
+  ports. Both are open **only to Tailscale addresses** (100.64.0.0/10). Note that Sunshine's own
+  installer may have added its own "Sunshine" rules that are open to **every network**; see
+  *What is open on the network* below.
 
 ### Your Sunshine pairings are removed
 
@@ -271,9 +272,19 @@ like a TV or tablet with Moonlight by hand, you have to pair them again every ti
 
 - **47900/TCP (pairing service):** open only while the Host screen is open. It only answers
   Tailscale addresses that know the secret in the code. It closes when you go back to the start.
-- **Sunshine ports (47984–48010):** while Sunshine runs. The firewall rule opens them to the
-  Tailscale network only. Who inside the Tailscale network can reach them is up to the ACL (Safe
-  mode).
+- **Sunshine ports (47984–48010):** while Sunshine runs. KeRemotePlay's own rule opens them to the
+  Tailscale network only, and who inside the Tailscale network can reach them is up to the ACL
+  (Safe mode). **But** Sunshine's installer usually adds its own "Sunshine" firewall rules, open to
+  every network. With those, Sunshine is also reachable from your home network and from **any
+  other VPN you are on** (ZeroTier, Hamachi, Radmin VPN, a second Tailscale network…).
+  - Only a Moonlight that you paired can actually stream, and KeRemotePlay removes all pairings at
+    every Host start and session end. But a Moonlight that is still paired, for example during a
+    session, can reach you on any of these networks, not only through KeRemotePlay.
+  - Moonlight remembers every address it has seen for your PC and tries them all. A VPN whose
+    window you closed often keeps running as a Windows service and stays connected.
+  - If you do not use another VPN, uninstall it. To limit Sunshine itself, open *Windows Defender
+    Firewall with Advanced Security* → *Inbound Rules*, and disable the rules named "Sunshine"
+    (KeRemotePlay's "KeRemotePlay-Sunshine" rules keep Tailscale working).
 - If the app is killed (Task Manager, power cut), Sunshine and Tailscale may stay on. KeRemotePlay
   stops a leftover Sunshine the next time it starts.
 

@@ -9,3 +9,6 @@ Android/
 # Claude Code için yerel devir notu ve ayarlar
 CLAUDE.md
 .claude/
+
+# tsnet denemesi: cihaz anahtarlarını içeren durum klasörü
+krp-tsnet-state/

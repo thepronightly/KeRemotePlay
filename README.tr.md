@@ -237,8 +237,9 @@ Kod yanlış ellere geçtiyse: Tailscale admin → **Settings → Keys**'ten ana
   başka amaçla hep açık kullanıyorsan bunu bil.
 - **Tailscale** host'ta "unattended" moda alınır (oturum kapalıyken de bağlı kalabilsin diye).
 - **Güvenlik Duvarı**'na eşleştirme servisi ve Sunshine portları için iki gelen trafik kuralı
-  eklenir. İkisi de **sadece Tailscale adreslerine** (100.64.0.0/10) açıktır; ev ağından ya da
-  internetten erişilemez.
+  eklenir. İkisi de **sadece Tailscale adreslerine** (100.64.0.0/10) açıktır. Ama Sunshine'ın
+  kendi kurulumu da "Sunshine" adında, **her ağa açık** kurallar eklemiş olabilir; aşağıda
+  *Ağda açık olanlar*'a bak.
 
 ### Sunshine eşleşmelerin silinir
 
@@ -251,8 +252,19 @@ eşleştirmen gerekir.
 
 - **47900/TCP (eşleştirme servisi):** Sadece Host ekranındayken açık. Sadece Tailscale
   adreslerinden ve koddaki gizli anahtarla cevap verir. Başa dönünce kapanır.
-- **Sunshine portları (47984–48010):** Sunshine açıkken. Güvenlik duvarı kuralı bunları sadece
-  Tailscale ağına açar. Tailscale ağının içinde kimin erişeceğini ise ACL belirler (Güvenli mod).
+- **Sunshine portları (47984–48010):** Sunshine açıkken. KeRemotePlay'in kendi kuralı bunları
+  sadece Tailscale ağına açar; Tailscale ağının içinde kimin erişeceğini ACL belirler (Güvenli mod).
+  **Ama** Sunshine'ın kurulumu genelde kendi "Sunshine" kurallarını ekler ve bunlar her ağa açıktır.
+  Bu yüzden Sunshine ev ağından ve **bağlı olduğun her VPN'den** de görünür (ZeroTier, Hamachi,
+  Radmin VPN, ikinci bir Tailscale ağı…).
+  - Yayın açabilen sadece senin eşleştirdiğin Moonlight'tır; KeRemotePlay her Host açılışında ve
+    oturum sonunda bütün eşleşmeleri siler. Ama hâlâ eşleşmiş bir Moonlight, mesela oturum
+    sırasında, sana KeRemotePlay dışındaki bu ağlardan da ulaşabilir.
+  - Moonlight bilgisayarın için gördüğü bütün adresleri hatırlar ve hepsini dener. Penceresini
+    kapattığın bir VPN çoğu zaman Windows servisi olarak çalışmaya ve bağlı kalmaya devam eder.
+  - Başka bir VPN kullanmıyorsan kaldır. Sunshine'ı da kısıtlamak istersen *Gelişmiş Güvenlik
+    Özellikli Windows Defender Güvenlik Duvarı* → *Gelen Kuralları*'nda "Sunshine" adlı kuralları
+    devre dışı bırak (KeRemotePlay'in "KeRemotePlay-Sunshine" kuralları Tailscale'i çalışır tutar).
 - Program zorla kapatılırsa (Görev Yöneticisi, elektrik kesintisi) Sunshine ve Tailscale açık
   kalabilir. KeRemotePlay bir sonraki açılışta kalmış Sunshine'ı kapatır.
 
